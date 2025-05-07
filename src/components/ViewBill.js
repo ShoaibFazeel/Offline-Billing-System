@@ -19,6 +19,8 @@ function ViewBill() {
   const [isEditing, setIsEditing] = useState(false)
   const [editedBill, setEditedBill] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [clientSearchTerm, setClientSearchTerm] = useState('')
+  const [productSearchTerms, setProductSearchTerms] = useState({})
 
   useEffect(() => {
     fetchBill()
@@ -57,17 +59,67 @@ function ViewBill() {
     }
   }
 
-  const handleClientChange = (e) => {
-    const clientId = e.target.value
-    const client = clients.find((c) => c._id === clientId)
+  const handleClientSearch = (e) => {
+    setClientSearchTerm(e.target.value)
+  }
 
-    if (client) {
-      setEditedBill({
-        ...editedBill,
-        clientId: client._id,
-        clientName: client.clientName,
-      })
+  const handleProductSearch = (index, value) => {
+    setProductSearchTerms(prev => ({
+      ...prev,
+      [index]: value
+    }))
+  }
+
+  const handleClientSelect = (client) => {
+    setEditedBill({
+      ...editedBill,
+      clientId: client._id,
+      clientName: client.clientName,
+    })
+    setClientSearchTerm('')
+  }
+
+  const handleProductSelect = (index, product) => {
+    const updatedItems = [...editedBill.items]
+    updatedItems[index] = {
+      ...updatedItems[index],
+      productId: product._id,
+      productName: product.productName,
+      rate: product.productPrice,
+      total: calculateItemTotal(updatedItems[index].quantity, product.productPrice, updatedItems[index].discount),
     }
+
+    const totalAmount = calculateBillTotal(updatedItems)
+
+    setEditedBill({
+      ...editedBill,
+      items: updatedItems,
+      totalAmount,
+    })
+
+    // Clear the search term for this product
+    setProductSearchTerms(prev => ({
+      ...prev,
+      [index]: ''
+    }))
+  }
+
+  const filteredClients = clientSearchTerm
+    ? clients.filter(
+        (client) =>
+          client.clientName.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
+          client.clientNumber.includes(clientSearchTerm)
+      )
+    : clients
+
+  const getFilteredProducts = (index) => {
+    const searchTerm = productSearchTerms[index] || ''
+    return searchTerm
+      ? products.filter(
+          (product) =>
+            product.productName.toLowerCase().includes(searchTerm.toLowerCase())
+        )
+      : products
   }
 
   const handleDateChange = (e) => {
@@ -649,17 +701,39 @@ function ViewBill() {
           <div>
             <h2 className="text-lg font-semibold mb-2">Client Information</h2>
             {isEditing ? (
-              <select
-                value={editedBill.clientId}
-                onChange={handleClientChange}
-                className="w-full p-2 border border-gray-300 rounded-md mb-2"
-              >
-                {clients.map((client) => (
-                  <option key={client._id} value={client._id}>
-                    {client.clientName}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search client by name or number..."
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  value={clientSearchTerm}
+                  onChange={handleClientSearch}
+                />
+                {clientSearchTerm && filteredClients.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                    {filteredClients.map((client) => (
+                      <div
+                        key={client._id}
+                        className="p-2 hover:bg-gray-100 cursor-pointer"
+                        onClick={() => handleClientSelect(client)}
+                      >
+                        <div className="font-medium">{client.clientName}</div>
+                        <div className="text-sm text-gray-500">{client.clientNumber}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {editedBill.clientId && (
+                  <div className="mt-2 p-2 bg-gray-50 rounded-md">
+                    <div className="font-medium">
+                      {clients.find(c => c._id === editedBill.clientId)?.clientName}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {clients.find(c => c._id === editedBill.clientId)?.clientNumber}
+                    </div>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="p-3 bg-gray-50 rounded-md">
                 <div className="font-medium">{bill.clientName}</div>
@@ -734,18 +808,39 @@ function ViewBill() {
                 <tr key={item._id || index} className={item.isBonus ? "bg-green-50" : ""}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {isEditing ? (
-                      <select
-                        value={item.productId}
-                        onChange={(e) => handleItemChange(index, "productId", e.target.value)}
-                        className="w-full p-1 border border-gray-300 rounded-md"
-                      >
-                        <option value="">Select Product</option>
-                        {products.map((product) => (
-                          <option key={product._id} value={product._id}>
-                            {product.productName}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="Search product..."
+                          className="w-full p-1 border border-gray-300 rounded-md"
+                          value={productSearchTerms[index] || ''}
+                          onChange={(e) => handleProductSearch(index, e.target.value)}
+                        />
+                        {productSearchTerms[index] && getFilteredProducts(index).length > 0 && (
+                          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                            {getFilteredProducts(index).map((product) => (
+                              <div
+                                key={product._id}
+                                className="p-2 hover:bg-gray-100 cursor-pointer"
+                                onClick={() => handleProductSelect(index, product)}
+                              >
+                                <div className="font-medium">{product.productName}</div>
+                                <div className="text-sm text-gray-500">PKR {product.productPrice.toFixed(2)}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {item.productId && (
+                          <div className="mt-1 p-1 bg-gray-50 rounded-md">
+                            <div className="font-medium">
+                              {products.find(p => p._id === item.productId)?.productName}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              PKR {products.find(p => p._id === item.productId)?.productPrice.toFixed(2)}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       item.productName
                     )}
