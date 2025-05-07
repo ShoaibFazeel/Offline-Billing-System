@@ -1,0 +1,13 @@
+node_modules/
+dist/
+build/
+out/
+*.log
+*.db
+*.db~
+*.db-journal
+.env
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

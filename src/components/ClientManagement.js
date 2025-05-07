@@ -1,0 +1,275 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import toast from "react-hot-toast"
+
+function ClientManagement() {
+  const [clients, setClients] = useState([])
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [currentClient, setCurrentClient] = useState({
+    clientName: "",
+    clientNumber: "",
+    clientAddress: "",
+    isFiler: false,
+    ntnNumber: "",
+  })
+  const [isEditing, setIsEditing] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
+
+  useEffect(() => {
+    fetchClients()
+  }, [])
+
+  const fetchClients = async () => {
+    try {
+      const data = await window.api.getClients()
+      setClients(data)
+    } catch (error) {
+      console.error("Error fetching clients:", error)
+      toast.error("Failed to load clients")
+    }
+  }
+
+  const handleInputChange = (e) => {
+    const { name, value, type, checked } = e.target
+    setCurrentClient({
+      ...currentClient,
+      [name]: type === "checkbox" ? checked : value,
+    })
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+
+    if (!currentClient.clientName || !currentClient.clientNumber || !currentClient.clientAddress) {
+      toast.error("Please fill in all required fields")
+      return
+    }
+
+    if (currentClient.isFiler && !currentClient.ntnNumber) {
+      toast.error("NTN Number is required for filers")
+      return
+    }
+
+    try {
+      if (isEditing) {
+        await window.api.updateClient(currentClient)
+        toast.success("Client updated successfully")
+      } else {
+        await window.api.addClient(currentClient)
+        toast.success("Client added successfully")
+      }
+
+      setIsModalOpen(false)
+      setCurrentClient({
+        clientName: "",
+        clientNumber: "",
+        clientAddress: "",
+        isFiler: false,
+        ntnNumber: "",
+      })
+      setIsEditing(false)
+      fetchClients()
+    } catch (error) {
+      console.error("Error saving client:", error)
+      toast.error("Failed to save client")
+    }
+  }
+
+  const handleEdit = (client) => {
+    setCurrentClient(client)
+    setIsEditing(true)
+    setIsModalOpen(true)
+  }
+
+  const filteredClients = clients.filter(
+    (client) =>
+      client.clientName.toLowerCase().includes(searchTerm.toLowerCase()) || client.clientNumber.includes(searchTerm),
+  )
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Client Management</h1>
+        <button
+          onClick={() => {
+            setCurrentClient({
+              clientName: "",
+              clientNumber: "",
+              clientAddress: "",
+              isFiler: false,
+              ntnNumber: "",
+            })
+            setIsEditing(false)
+            setIsModalOpen(true)
+          }}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
+        >
+          Add New Client
+        </button>
+      </div>
+
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Search clients by name or number..."
+          className="w-full p-2 border border-gray-300 rounded-md"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </div>
+
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Contact Number
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Address
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Filer Status
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {filteredClients.length > 0 ? (
+              filteredClients.map((client) => (
+                <tr key={client._id}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{client.clientName}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{client.clientNumber}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{client.clientAddress}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {client.isFiler ? (
+                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                        Filer (NTN: {client.ntnNumber})
+                      </span>
+                    ) : (
+                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                        Non-Filer
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <button onClick={() => handleEdit(client)} className="text-blue-600 hover:text-blue-900">
+                      Edit
+                    </button>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="5" className="px-6 py-4 text-center text-sm text-gray-500">
+                  {searchTerm
+                    ? "No clients found matching your search."
+                    : "No clients available. Add your first client!"}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Modal for adding/editing clients */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-xl font-semibold mb-4">{isEditing ? "Edit Client" : "Add New Client"}</h2>
+            <form onSubmit={handleSubmit}>
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="clientName">
+                  Client Name *
+                </label>
+                <input
+                  type="text"
+                  id="clientName"
+                  name="clientName"
+                  value={currentClient.clientName}
+                  onChange={handleInputChange}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="clientNumber">
+                  Contact Number *
+                </label>
+                <input
+                  type="text"
+                  id="clientNumber"
+                  name="clientNumber"
+                  value={currentClient.clientNumber}
+                  onChange={handleInputChange}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="clientAddress">
+                  Address *
+                </label>
+                <textarea
+                  id="clientAddress"
+                  name="clientAddress"
+                  value={currentClient.clientAddress}
+                  onChange={handleInputChange}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  rows="3"
+                  required
+                ></textarea>
+              </div>
+              <div className="mb-4">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="isFiler"
+                    checked={currentClient.isFiler}
+                    onChange={handleInputChange}
+                    className="mr-2"
+                  />
+                  <span className="text-gray-700 text-sm font-bold">Is Tax Filer</span>
+                </label>
+              </div>
+              {currentClient.isFiler && (
+                <div className="mb-6">
+                  <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="ntnNumber">
+                    NTN Number *
+                  </label>
+                  <input
+                    type="text"
+                    id="ntnNumber"
+                    name="ntnNumber"
+                    value={currentClient.ntnNumber}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                    required
+                  />
+                </div>
+              )}
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-md mr-2"
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md">
+                  {isEditing ? "Update" : "Add"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default ClientManagement

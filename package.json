@@ -1,0 +1,64 @@
+{
+  "name": "billing-system",
+  "version": "1.0.0",
+  "description": "Offline Billing and Inventory Management Application",
+  "main": "main.js",
+  "scripts": {
+    "build-react": "webpack --mode=development",
+    "start": "npm run build-react && electron .",
+    "dev": "cross-env NODE_ENV=development npm run build-react && electron .",
+    "build": "npm run build-react && electron-builder",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "nedb": "^1.8.0",
+    "pdf-lib": "^1.17.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-hot-toast": "^2.4.1",
+    "react-router-dom": "^6.14.1",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.22.5",
+    "@babel/preset-env": "^7.22.5",
+    "@babel/preset-react": "^7.22.5",
+    "autoprefixer": "^10.4.14",
+    "babel-loader": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "css-loader": "^6.8.1",
+    "electron": "^25.2.0",
+    "electron-builder": "^24.4.0",
+    "postcss": "^8.4.24",
+    "postcss-loader": "^7.3.3",
+    "style-loader": "^3.3.3",
+    "tailwindcss": "^3.3.2",
+    "tailwindcss-animate": "^1.0.6",
+    "webpack": "^5.88.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "build": {
+    "appId": "com.billing.system",
+    "productName": "Billing System",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "build/**/*",
+      "main.js",
+      "preload.js",
+      "index.html"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}
