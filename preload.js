@@ -52,5 +52,3 @@ contextBridge.exposeInMainWorld("api", {
   clearClients: () => ipcRenderer.invoke("clear-clients"),
   clearBills: () => ipcRenderer.invoke("clear-bills"),
 })
-
-console.log("Preload script loaded")

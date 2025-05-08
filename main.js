@@ -39,8 +39,10 @@ function createWindow() {
   // Load the index.html file
   mainWindow.loadFile("index.html")
 
-  // Open DevTools in development
-  mainWindow.webContents.openDevTools()
+  // Open DevTools only in development
+  if (process.env.NODE_ENV === "development") {
+    mainWindow.webContents.openDevTools()
+  }
 }
 
 // When Electron has finished initialization
@@ -57,7 +59,82 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit()
 })
 
-// IPC handlers for database operations
+// Helper function to generate a unique ID
+function generateUniqueId() {
+  return `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+}
+
+// Helper function to ensure all items have an _id
+function ensureItemsHaveIds(items) {
+  if (!items || !Array.isArray(items)) return []
+
+  return items.map((item) => {
+    // Create a new object to avoid modifying the original
+    const newItem = { ...item }
+
+    // Ensure item has an _id
+    if (!newItem._id) {
+      newItem._id = generateUniqueId()
+    }
+
+    return newItem
+  })
+}
+
+// Helper function to update product quantities
+async function updateProductQuantities(items, isRefund = false) {
+  // Create a map to track total quantities for each product
+  const productQuantities = new Map()
+
+  // Calculate total quantities for each product
+  items.forEach((item) => {
+    if (item.productId) {
+      const currentQty = productQuantities.get(item.productId) || 0
+      productQuantities.set(item.productId, currentQty + item.quantity)
+    }
+  })
+
+  // Update product quantities in the database
+  const updatePromises = []
+
+  for (const [productId, quantity] of productQuantities.entries()) {
+    updatePromises.push(
+      new Promise((resolve, reject) => {
+        // First get the product
+        db.products.findOne({ _id: productId }, (err, product) => {
+          if (err) {
+            reject(err)
+            return
+          }
+
+          // Skip if product has infinite quantity
+          if (!product || product.hasInfiniteQuantity !== false) {
+            resolve()
+            return
+          }
+
+          // Update the quantity
+          const newQuantity = isRefund ? product.quantity + quantity : product.quantity - quantity
+
+          db.products.update(
+            { _id: productId },
+            { $set: { quantity: Math.max(0, newQuantity) } },
+            {},
+            (err, numReplaced) => {
+              if (err) {
+                reject(err)
+              } else {
+                resolve(numReplaced)
+              }
+            },
+          )
+        })
+      }),
+    )
+  }
+
+  return Promise.all(updatePromises)
+}
 
 // Products
 ipcMain.handle("get-products", async () => {
@@ -351,91 +428,9 @@ ipcMain.handle("import-bills", async (event, bills) => {
   })
 })
 
-// Helper function to generate a unique ID
-function generateUniqueId() {
-  return `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-}
-
-// Helper function to ensure all items have an _id
-function ensureItemsHaveIds(items) {
-  if (!items || !Array.isArray(items)) return []
-
-  return items.map((item) => {
-    // Create a new object to avoid modifying the original
-    const newItem = { ...item }
-
-    // Ensure item has an _id
-    if (!newItem._id) {
-      newItem._id = generateUniqueId()
-    }
-
-    return newItem
-  })
-}
-
-// Helper function to update product quantities
-async function updateProductQuantities(items, isRefund = false) {
-  // Create a map to track total quantities for each product
-  const productQuantities = new Map()
-
-  // Calculate total quantities for each product
-  items.forEach((item) => {
-    if (item.productId) {
-      const currentQty = productQuantities.get(item.productId) || 0
-      productQuantities.set(item.productId, currentQty + item.quantity)
-    }
-  })
-
-  // Update product quantities in the database
-  const updatePromises = []
-
-  for (const [productId, quantity] of productQuantities.entries()) {
-    updatePromises.push(
-      new Promise((resolve, reject) => {
-        // First get the product
-        db.products.findOne({ _id: productId }, (err, product) => {
-          if (err) {
-            console.error(`Error finding product ${productId}:`, err)
-            reject(err)
-            return
-          }
-
-          // Skip if product has infinite quantity
-          if (!product || product.hasInfiniteQuantity !== false) {
-            resolve()
-            return
-          }
-
-          // Update the quantity
-          const newQuantity = isRefund ? product.quantity + quantity : product.quantity - quantity
-
-          db.products.update(
-            { _id: productId },
-            { $set: { quantity: Math.max(0, newQuantity) } },
-            {},
-            (err, numReplaced) => {
-              if (err) {
-                console.error(`Error updating product ${productId} quantity:`, err)
-                reject(err)
-              } else {
-                console.log(`Updated product ${productId} quantity to ${newQuantity}`)
-                resolve(numReplaced)
-              }
-            },
-          )
-        })
-      }),
-    )
-  }
-
-  return Promise.all(updatePromises)
-}
-
 ipcMain.handle("add-bill", async (event, bill) => {
   return new Promise(async (resolve, reject) => {
     try {
-      console.log("Received bill for adding:", JSON.stringify(bill))
-
       // Create a deep copy of the bill to avoid modifying the original
       const billToSave = JSON.parse(JSON.stringify(bill))
 
@@ -447,13 +442,10 @@ ipcMain.handle("add-bill", async (event, bill) => {
       // Ensure all items have an _id
       billToSave.items = ensureItemsHaveIds(billToSave.items)
 
-      console.log("Processed bill for adding:", JSON.stringify(billToSave))
-
       // Update product quantities
       try {
         await updateProductQuantities(billToSave.items)
       } catch (error) {
-        console.error("Error updating product quantities:", error)
         reject(error)
         return
       }
@@ -461,7 +453,6 @@ ipcMain.handle("add-bill", async (event, bill) => {
       // Insert the bill into the database
       db.bills.insert(billToSave, (err, newBill) => {
         if (err) {
-          console.error("Error inserting bill:", err)
           reject(err)
         } else {
           // Update client-product history
@@ -489,7 +480,6 @@ ipcMain.handle("add-bill", async (event, bill) => {
         }
       })
     } catch (error) {
-      console.error("Error processing bill:", error)
       reject(error)
     }
   })
@@ -498,8 +488,6 @@ ipcMain.handle("add-bill", async (event, bill) => {
 ipcMain.handle("update-bill", async (event, bill) => {
   return new Promise(async (resolve, reject) => {
     try {
-      console.log("Received bill for updating:", JSON.stringify(bill))
-
       // Get the original bill to compare items
       const originalBill = await new Promise((resolve, reject) => {
         db.bills.findOne({ _id: bill._id }, (err, existingBill) => {
@@ -519,13 +507,10 @@ ipcMain.handle("update-bill", async (event, bill) => {
       // Ensure all items have an _id
       billToSave.items = ensureItemsHaveIds(billToSave.items)
 
-      console.log("Processed bill for updating:", JSON.stringify(billToSave))
-
       // First, refund the quantities from the original bill
       try {
         await updateProductQuantities(originalBill.items, true)
       } catch (error) {
-        console.error("Error refunding product quantities:", error)
         reject(error)
         return
       }
@@ -534,7 +519,6 @@ ipcMain.handle("update-bill", async (event, bill) => {
       try {
         await updateProductQuantities(billToSave.items)
       } catch (error) {
-        console.error("Error updating product quantities:", error)
         // Try to restore the original quantities
         await updateProductQuantities(originalBill.items)
         reject(error)
@@ -544,7 +528,6 @@ ipcMain.handle("update-bill", async (event, bill) => {
       // Update the bill in the database
       db.bills.update({ _id: billToSave._id }, billToSave, {}, (err, numReplaced) => {
         if (err) {
-          console.error("Error updating bill:", err)
           reject(err)
         } else {
           // Update client-product history
@@ -572,7 +555,6 @@ ipcMain.handle("update-bill", async (event, bill) => {
         }
       })
     } catch (error) {
-      console.error("Error processing bill update:", error)
       reject(error)
     }
   })
