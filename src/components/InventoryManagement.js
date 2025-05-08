@@ -6,7 +6,12 @@ import toast from "react-hot-toast"
 function InventoryManagement() {
   const [products, setProducts] = useState([])
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [currentProduct, setCurrentProduct] = useState({ productName: "", productPrice: "" })
+  const [currentProduct, setCurrentProduct] = useState({
+    productName: "",
+    productPrice: "",
+    hasInfiniteQuantity: true,
+    quantity: 0,
+  })
   const [isEditing, setIsEditing] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
 
@@ -25,15 +30,28 @@ function InventoryManagement() {
   }
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target
-    setCurrentProduct({ ...currentProduct, [name]: name === "productPrice" ? Number.parseFloat(value) || "" : value })
+    const { name, value, type, checked } = e.target
+    setCurrentProduct({
+      ...currentProduct,
+      [name]:
+        type === "checkbox"
+          ? checked
+          : name === "productPrice" || name === "quantity"
+            ? Number.parseFloat(value) || 0
+            : value,
+    })
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
 
     if (!currentProduct.productName || !currentProduct.productPrice) {
-      toast.error("Please fill in all fields")
+      toast.error("Please fill in all required fields")
+      return
+    }
+
+    if (!currentProduct.hasInfiniteQuantity && currentProduct.quantity <= 0) {
+      toast.error("Please enter a valid quantity for the product")
       return
     }
 
@@ -47,7 +65,12 @@ function InventoryManagement() {
       }
 
       setIsModalOpen(false)
-      setCurrentProduct({ productName: "", productPrice: "" })
+      setCurrentProduct({
+        productName: "",
+        productPrice: "",
+        hasInfiniteQuantity: true,
+        quantity: 0,
+      })
       setIsEditing(false)
       fetchProducts()
     } catch (error) {
@@ -57,7 +80,13 @@ function InventoryManagement() {
   }
 
   const handleEdit = (product) => {
-    setCurrentProduct(product)
+    // Ensure product has the hasInfiniteQuantity property (for backward compatibility)
+    const productToEdit = {
+      ...product,
+      hasInfiniteQuantity: product.hasInfiniteQuantity !== undefined ? product.hasInfiniteQuantity : true,
+      quantity: product.quantity || 0,
+    }
+    setCurrentProduct(productToEdit)
     setIsEditing(true)
     setIsModalOpen(true)
   }
@@ -72,7 +101,12 @@ function InventoryManagement() {
         <h1 className="text-3xl font-bold">Inventory Management</h1>
         <button
           onClick={() => {
-            setCurrentProduct({ productName: "", productPrice: "" })
+            setCurrentProduct({
+              productName: "",
+              productPrice: "",
+              hasInfiniteQuantity: true,
+              quantity: 0,
+            })
             setIsEditing(false)
             setIsModalOpen(true)
           }}
@@ -101,6 +135,9 @@ function InventoryManagement() {
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Quantity
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
@@ -115,6 +152,15 @@ function InventoryManagement() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     PKR{product.productPrice.toFixed(2)}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {product.hasInfiniteQuantity !== false ? (
+                      <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                        Unlimited
+                      </span>
+                    ) : (
+                      product.quantity
+                    )}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button onClick={() => handleEdit(product)} className="text-blue-600 hover:text-blue-900">
                       Edit
@@ -124,7 +170,7 @@ function InventoryManagement() {
               ))
             ) : (
               <tr>
-                <td colSpan="3" className="px-6 py-4 text-center text-sm text-gray-500">
+                <td colSpan="4" className="px-6 py-4 text-center text-sm text-gray-500">
                   {searchTerm
                     ? "No products found matching your search."
                     : "No products available. Add your first product!"}
@@ -143,7 +189,7 @@ function InventoryManagement() {
             <form onSubmit={handleSubmit}>
               <div className="mb-4">
                 <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="productName">
-                  Product Name
+                  Product Name *
                 </label>
                 <input
                   type="text"
@@ -155,9 +201,9 @@ function InventoryManagement() {
                   required
                 />
               </div>
-              <div className="mb-6">
+              <div className="mb-4">
                 <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="productPrice">
-                  Price
+                  Price *
                 </label>
                 <input
                   type="number"
@@ -171,6 +217,35 @@ function InventoryManagement() {
                   required
                 />
               </div>
+              <div className="mb-4">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="hasInfiniteQuantity"
+                    checked={currentProduct.hasInfiniteQuantity}
+                    onChange={handleInputChange}
+                    className="mr-2"
+                  />
+                  <span className="text-gray-700 text-sm font-bold">Unlimited Quantity</span>
+                </label>
+              </div>
+              {!currentProduct.hasInfiniteQuantity && (
+                <div className="mb-6">
+                  <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="quantity">
+                    Quantity *
+                  </label>
+                  <input
+                    type="number"
+                    id="quantity"
+                    name="quantity"
+                    value={currentProduct.quantity}
+                    onChange={handleInputChange}
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                    min="0"
+                    required
+                  />
+                </div>
+              )}
               <div className="flex justify-end">
                 <button
                   type="button"

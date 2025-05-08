@@ -16,16 +16,23 @@ function ViewBill() {
   const [bill, setBill] = useState(null)
   const [clients, setClients] = useState([])
   const [products, setProducts] = useState([])
+  const [fieldOfficers, setFieldOfficers] = useState([])
+  const [salesmen, setSalesmen] = useState([])
   const [isEditing, setIsEditing] = useState(false)
   const [editedBill, setEditedBill] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [clientSearchTerm, setClientSearchTerm] = useState('')
+  const [clientSearchTerm, setClientSearchTerm] = useState("")
+  const [fieldOfficerSearchTerm, setFieldOfficerSearchTerm] = useState("")
+  const [salesmanSearchTerm, setSalesmanSearchTerm] = useState("")
   const [productSearchTerms, setProductSearchTerms] = useState({})
+  const [originalItems, setOriginalItems] = useState([])
 
   useEffect(() => {
     fetchBill()
     fetchClients()
     fetchProducts()
+    fetchFieldOfficers()
+    fetchSalesmen()
   }, [id])
 
   const fetchBill = async () => {
@@ -33,6 +40,7 @@ function ViewBill() {
       const data = await window.api.getBill(id)
       setBill(data)
       setEditedBill(JSON.parse(JSON.stringify(data))) // Deep copy for editing
+      setOriginalItems(JSON.parse(JSON.stringify(data.items))) // Keep original items for inventory comparison
       setIsLoading(false)
     } catch (error) {
       console.error("Error fetching bill:", error)
@@ -59,14 +67,40 @@ function ViewBill() {
     }
   }
 
+  const fetchFieldOfficers = async () => {
+    try {
+      const data = await window.api.getFieldOfficers()
+      setFieldOfficers(data)
+    } catch (error) {
+      console.error("Error fetching field officers:", error)
+    }
+  }
+
+  const fetchSalesmen = async () => {
+    try {
+      const data = await window.api.getSalesmen()
+      setSalesmen(data)
+    } catch (error) {
+      console.error("Error fetching salesmen:", error)
+    }
+  }
+
   const handleClientSearch = (e) => {
     setClientSearchTerm(e.target.value)
   }
 
+  const handleFieldOfficerSearch = (e) => {
+    setFieldOfficerSearchTerm(e.target.value)
+  }
+
+  const handleSalesmanSearch = (e) => {
+    setSalesmanSearchTerm(e.target.value)
+  }
+
   const handleProductSearch = (index, value) => {
-    setProductSearchTerms(prev => ({
+    setProductSearchTerms((prev) => ({
       ...prev,
-      [index]: value
+      [index]: value,
     }))
   }
 
@@ -76,7 +110,25 @@ function ViewBill() {
       clientId: client._id,
       clientName: client.clientName,
     })
-    setClientSearchTerm('')
+    setClientSearchTerm("")
+  }
+
+  const handleFieldOfficerSelect = (fieldOfficer) => {
+    setEditedBill({
+      ...editedBill,
+      fieldOfficerId: fieldOfficer._id,
+      fieldOfficerName: fieldOfficer.name,
+    })
+    setFieldOfficerSearchTerm("")
+  }
+
+  const handleSalesmanSelect = (salesman) => {
+    setEditedBill({
+      ...editedBill,
+      salesmanId: salesman._id,
+      salesmanName: salesman.name,
+    })
+    setSalesmanSearchTerm("")
   }
 
   const handleProductSelect = (index, product) => {
@@ -86,6 +138,8 @@ function ViewBill() {
       productId: product._id,
       productName: product.productName,
       rate: product.productPrice,
+      availableQuantity: product.hasInfiniteQuantity !== false ? Number.POSITIVE_INFINITY : product.quantity,
+      hasInfiniteQuantity: product.hasInfiniteQuantity !== false,
       total: calculateItemTotal(updatedItems[index].quantity, product.productPrice, updatedItems[index].discount),
     }
 
@@ -98,9 +152,9 @@ function ViewBill() {
     })
 
     // Clear the search term for this product
-    setProductSearchTerms(prev => ({
+    setProductSearchTerms((prev) => ({
       ...prev,
-      [index]: ''
+      [index]: "",
     }))
   }
 
@@ -108,17 +162,30 @@ function ViewBill() {
     ? clients.filter(
         (client) =>
           client.clientName.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
-          client.clientNumber.includes(clientSearchTerm)
+          client.clientNumber.includes(clientSearchTerm),
       )
     : clients
 
+  const filteredFieldOfficers = fieldOfficerSearchTerm
+    ? fieldOfficers.filter(
+        (officer) =>
+          officer.name.toLowerCase().includes(fieldOfficerSearchTerm.toLowerCase()) ||
+          officer.phoneNumber.includes(fieldOfficerSearchTerm),
+      )
+    : fieldOfficers
+
+  const filteredSalesmen = salesmanSearchTerm
+    ? salesmen.filter(
+        (salesman) =>
+          salesman.name.toLowerCase().includes(salesmanSearchTerm.toLowerCase()) ||
+          salesman.phoneNumber.includes(salesmanSearchTerm),
+      )
+    : salesmen
+
   const getFilteredProducts = (index) => {
-    const searchTerm = productSearchTerms[index] || ''
+    const searchTerm = productSearchTerms[index] || ""
     return searchTerm
-      ? products.filter(
-          (product) =>
-            product.productName.toLowerCase().includes(searchTerm.toLowerCase())
-        )
+      ? products.filter((product) => product.productName.toLowerCase().includes(searchTerm.toLowerCase()))
       : products
   }
 
@@ -131,36 +198,43 @@ function ViewBill() {
 
   const handleItemChange = (index, field, value) => {
     const updatedItems = [...editedBill.items]
+    const item = updatedItems[index]
 
-    if (field === "productId") {
-      const product = products.find((p) => p._id === value)
+    if (field === "quantity" || field === "rate" || field === "discount") {
+      value = Number.parseFloat(value) || 0
+    }
+
+    // Check if quantity exceeds available quantity
+    if (field === "quantity" && item.hasInfiniteQuantity === false) {
+      // Find the original item to calculate the available quantity
+      const originalItem = originalItems.find((oi) => oi._id === item._id)
+      const originalQuantity = originalItem ? originalItem.quantity : 0
+
+      // Get the product's current quantity
+      const product = products.find((p) => p._id === item.productId)
       if (product) {
-        updatedItems[index] = {
-          ...updatedItems[index],
-          productId: product._id,
-          productName: product.productName,
-          rate: product.productPrice,
-          total: calculateItemTotal(updatedItems[index].quantity, product.productPrice, updatedItems[index].discount),
+        // Available = current product quantity + original bill quantity
+        const availableQuantity = product.quantity + originalQuantity
+
+        if (value > availableQuantity) {
+          toast.error(`Only ${availableQuantity} units of ${item.productName} are available`)
+          value = availableQuantity
         }
       }
-    } else {
-      if (field === "quantity" || field === "rate" || field === "discount") {
-        value = Number.parseFloat(value) || 0
-      }
+    }
 
-      updatedItems[index] = {
-        ...updatedItems[index],
-        [field]: value,
-      }
+    updatedItems[index] = {
+      ...updatedItems[index],
+      [field]: value,
+    }
 
-      // Recalculate total for this item
-      if (field === "quantity" || field === "rate" || field === "discount") {
-        updatedItems[index].total = calculateItemTotal(
-          updatedItems[index].quantity,
-          updatedItems[index].rate,
-          updatedItems[index].discount,
-        )
-      }
+    // Recalculate total for this item
+    if (field === "quantity" || field === "rate" || field === "discount") {
+      updatedItems[index].total = calculateItemTotal(
+        updatedItems[index].quantity,
+        updatedItems[index].rate,
+        updatedItems[index].discount,
+      )
     }
 
     const totalAmount = calculateBillTotal(updatedItems)
@@ -233,8 +307,52 @@ function ViewBill() {
     })
   }
 
+  const checkInventoryLevels = () => {
+    // Create a map to track total quantities for each product
+    const productQuantities = new Map()
+
+    // Add quantities from edited bill
+    editedBill.items.forEach((item) => {
+      if (item.productId) {
+        const currentQty = productQuantities.get(item.productId) || 0
+        productQuantities.set(item.productId, currentQty + item.quantity)
+      }
+    })
+
+    // Subtract quantities from original bill
+    originalItems.forEach((item) => {
+      if (item.productId) {
+        const currentQty = productQuantities.get(item.productId) || 0
+        productQuantities.set(item.productId, currentQty - item.quantity)
+      }
+    })
+
+    // Check if any product exceeds available quantity
+    let hasInsufficientInventory = false
+
+    productQuantities.forEach((netQuantity, productId) => {
+      // Skip if net quantity is negative or zero (we're using less or the same amount)
+      if (netQuantity <= 0) return
+
+      const product = products.find((p) => p._id === productId)
+      if (product && product.hasInfiniteQuantity === false && netQuantity > product.quantity) {
+        toast.error(
+          `Insufficient inventory for ${product.productName}. Available: ${product.quantity}, Additional required: ${netQuantity}`,
+        )
+        hasInsufficientInventory = true
+      }
+    })
+
+    return !hasInsufficientInventory
+  }
+
   const saveBill = async () => {
     try {
+      // Check inventory levels
+      if (!checkInventoryLevels()) {
+        return
+      }
+
       // Ensure all items have an _id
       const itemsWithIds = editedBill.items.map((item) => {
         if (!item._id) {
@@ -375,6 +493,29 @@ function ViewBill() {
           color: rgb(0, 0, 0),
         })
 
+        yPosition -= 15
+      }
+
+      // Add Field Officer and Salesman information
+      if (bill.fieldOfficerName) {
+        page.drawText(`Field Officer: ${bill.fieldOfficerName}`, {
+          x: page.getWidth() - margin - 200,
+          y: yPosition,
+          size: textFontSize,
+          font: helveticaFont,
+          color: rgb(0, 0, 0),
+        })
+        yPosition -= 15
+      }
+
+      if (bill.salesmanName) {
+        page.drawText(`Salesman: ${bill.salesmanName}`, {
+          x: page.getWidth() - margin - 200,
+          y: yPosition,
+          size: textFontSize,
+          font: helveticaFont,
+          color: rgb(0, 0, 0),
+        })
         yPosition -= 15
       }
 
@@ -725,11 +866,9 @@ function ViewBill() {
                 )}
                 {editedBill.clientId && (
                   <div className="mt-2 p-2 bg-gray-50 rounded-md">
-                    <div className="font-medium">
-                      {clients.find(c => c._id === editedBill.clientId)?.clientName}
-                    </div>
+                    <div className="font-medium">{clients.find((c) => c._id === editedBill.clientId)?.clientName}</div>
                     <div className="text-sm text-gray-500">
-                      {clients.find(c => c._id === editedBill.clientId)?.clientNumber}
+                      {clients.find((c) => c._id === editedBill.clientId)?.clientNumber}
                     </div>
                   </div>
                 )}
@@ -774,6 +913,97 @@ function ViewBill() {
             </div>
           </div>
         </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+          <div>
+            <h2 className="text-lg font-semibold mb-2">Field Officer</h2>
+            {isEditing ? (
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search field officer by name or number..."
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  value={fieldOfficerSearchTerm}
+                  onChange={handleFieldOfficerSearch}
+                />
+                {fieldOfficerSearchTerm && filteredFieldOfficers.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                    {filteredFieldOfficers.map((officer) => (
+                      <div
+                        key={officer._id}
+                        className="p-2 hover:bg-gray-100 cursor-pointer"
+                        onClick={() => handleFieldOfficerSelect(officer)}
+                      >
+                        <div className="font-medium">{officer.name}</div>
+                        <div className="text-sm text-gray-500">{officer.phoneNumber}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {editedBill.fieldOfficerId && (
+                  <div className="mt-2 p-2 bg-gray-50 rounded-md">
+                    <div className="font-medium">
+                      {fieldOfficers.find((o) => o._id === editedBill.fieldOfficerId)?.name}
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      {fieldOfficers.find((o) => o._id === editedBill.fieldOfficerId)?.phoneNumber}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-3 bg-gray-50 rounded-md">
+                <div className="font-medium">{bill.fieldOfficerName || "Not specified"}</div>
+                {fieldOfficers.find((o) => o._id === bill.fieldOfficerId) && (
+                  <div className="text-sm">{fieldOfficers.find((o) => o._id === bill.fieldOfficerId).phoneNumber}</div>
+                )}
+              </div>
+            )}
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold mb-2">Salesman</h2>
+            {isEditing ? (
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search salesman by name or number..."
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  value={salesmanSearchTerm}
+                  onChange={handleSalesmanSearch}
+                />
+                {salesmanSearchTerm && filteredSalesmen.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                    {filteredSalesmen.map((salesman) => (
+                      <div
+                        key={salesman._id}
+                        className="p-2 hover:bg-gray-100 cursor-pointer"
+                        onClick={() => handleSalesmanSelect(salesman)}
+                      >
+                        <div className="font-medium">{salesman.name}</div>
+                        <div className="text-sm text-gray-500">{salesman.phoneNumber}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {editedBill.salesmanId && (
+                  <div className="mt-2 p-2 bg-gray-50 rounded-md">
+                    <div className="font-medium">{salesmen.find((s) => s._id === editedBill.salesmanId)?.name}</div>
+                    <div className="text-sm text-gray-500">
+                      {salesmen.find((s) => s._id === editedBill.salesmanId)?.phoneNumber}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-3 bg-gray-50 rounded-md">
+                <div className="font-medium">{bill.salesmanName || "Not specified"}</div>
+                {salesmen.find((s) => s._id === bill.salesmanId) && (
+                  <div className="text-sm">{salesmen.find((s) => s._id === bill.salesmanId).phoneNumber}</div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow p-6 mb-6">
@@ -813,7 +1043,7 @@ function ViewBill() {
                           type="text"
                           placeholder="Search product..."
                           className="w-full p-1 border border-gray-300 rounded-md"
-                          value={productSearchTerms[index] || ''}
+                          value={productSearchTerms[index] || ""}
                           onChange={(e) => handleProductSearch(index, e.target.value)}
                         />
                         {productSearchTerms[index] && getFilteredProducts(index).length > 0 && (
@@ -825,7 +1055,12 @@ function ViewBill() {
                                 onClick={() => handleProductSelect(index, product)}
                               >
                                 <div className="font-medium">{product.productName}</div>
-                                <div className="text-sm text-gray-500">PKR {product.productPrice.toFixed(2)}</div>
+                                <div className="text-sm text-gray-500">
+                                  PKR {product.productPrice.toFixed(2)}
+                                  {product.hasInfiniteQuantity === false
+                                    ? ` - ${product.quantity} in stock`
+                                    : " - Unlimited stock"}
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -833,10 +1068,10 @@ function ViewBill() {
                         {item.productId && (
                           <div className="mt-1 p-1 bg-gray-50 rounded-md">
                             <div className="font-medium">
-                              {products.find(p => p._id === item.productId)?.productName}
+                              {products.find((p) => p._id === item.productId)?.productName}
                             </div>
                             <div className="text-sm text-gray-500">
-                              PKR {products.find(p => p._id === item.productId)?.productPrice.toFixed(2)}
+                              PKR {products.find((p) => p._id === item.productId)?.productPrice.toFixed(2)}
                             </div>
                           </div>
                         )}
@@ -847,13 +1082,29 @@ function ViewBill() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {isEditing ? (
-                      <input
-                        type="number"
-                        value={item.quantity}
-                        onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
-                        className="w-full p-1 border border-gray-300 rounded-md"
-                        min="1"
-                      />
+                      <div>
+                        <input
+                          type="number"
+                          value={item.quantity}
+                          onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
+                          className="w-full p-1 border border-gray-300 rounded-md"
+                          min="1"
+                        />
+                        {item.productId && item.hasInfiniteQuantity === false && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            {(() => {
+                              const originalItem = originalItems.find((oi) => oi._id === item._id)
+                              const originalQuantity = originalItem ? originalItem.quantity : 0
+                              const product = products.find((p) => p._id === item.productId)
+                              if (product) {
+                                const availableQuantity = product.quantity + originalQuantity
+                                return `Available: ${availableQuantity}`
+                              }
+                              return ""
+                            })()}
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       item.quantity
                     )}

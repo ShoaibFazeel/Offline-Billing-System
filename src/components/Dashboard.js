@@ -12,6 +12,10 @@ function Dashboard() {
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [lowStockProducts, setLowStockProducts] = useState([])
+  const [lowStockThreshold, setLowStockThreshold] = useState(50)
+  const [allProducts, setAllProducts] = useState([])
+  const [companyInfo, setCompanyInfo] = useState(null)
 
   useEffect(() => {
     console.log("Dashboard component mounted")
@@ -27,12 +31,17 @@ function Dashboard() {
 
         const products = await window.api.getProducts()
         console.log("Products fetched:", products)
+        setAllProducts(products)
 
         const clients = await window.api.getClients()
         console.log("Clients fetched:", clients)
 
         const bills = await window.api.getBills()
         console.log("Bills fetched:", bills)
+
+        // Fetch company info
+        const company = await window.api.getCompanyInfo()
+        setCompanyInfo(company)
 
         setStats({
           products: products.length,
@@ -50,6 +59,26 @@ function Dashboard() {
 
     fetchStats()
   }, [])
+
+  // Update low stock products whenever threshold changes or products change
+  useEffect(() => {
+    updateLowStockProducts()
+  }, [lowStockThreshold, allProducts])
+
+  const updateLowStockProducts = () => {
+    // Filter products with quantity below threshold and not infinite
+    const lowStock = allProducts.filter(
+      (product) => product.hasInfiniteQuantity === false && product.quantity <= lowStockThreshold,
+    )
+    setLowStockProducts(lowStock)
+  }
+
+  const handleThresholdChange = (e) => {
+    const value = Number.parseInt(e.target.value)
+    if (!isNaN(value) && value >= 0) {
+      setLowStockThreshold(value)
+    }
+  }
 
   if (error) {
     return (
@@ -75,10 +104,104 @@ function Dashboard() {
     <div>
       <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
 
+      {/* Company Information */}
+      {companyInfo && (
+        <div className="bg-white rounded-lg shadow p-6 mb-8">
+          <h2 className="text-xl font-semibold mb-4">{companyInfo.companyName}</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-gray-600">{companyInfo.companyAddress}</p>
+            </div>
+            <div>
+              <div className="mb-2">
+                <span className="font-medium">Owner:</span> {companyInfo.ownerName} ({companyInfo.ownerPhone})
+              </div>
+              <div>
+                <span className="font-medium">General Manager:</span> {companyInfo.managerName} (
+                {companyInfo.managerPhone})
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <StatCard title="Products" value={stats.products} icon="box" linkTo="/inventory" />
         <StatCard title="Clients" value={stats.clients} icon="users" linkTo="/clients" />
         <StatCard title="Total Bills" value={stats.bills} icon="file-text" linkTo="/bills" />
+      </div>
+
+      {/* Low Stock Alert Section */}
+      <div className="bg-white rounded-lg shadow p-6 mb-8">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold">Low Stock Alert</h2>
+          <div className="flex items-center">
+            <label htmlFor="threshold" className="mr-2 text-sm font-medium">
+              Threshold:
+            </label>
+            <input
+              id="threshold"
+              type="number"
+              min="0"
+              value={lowStockThreshold}
+              onChange={handleThresholdChange}
+              className="w-20 p-1 border border-gray-300 rounded-md"
+            />
+          </div>
+        </div>
+
+        {lowStockProducts.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Product Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Current Stock
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Action
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {lowStockProducts.map((product) => (
+                  <tr key={product._id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {product.productName}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.quantity}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {product.quantity === 0 ? (
+                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                          Out of Stock
+                        </span>
+                      ) : (
+                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                          Low Stock
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <Link to="/inventory" className="text-blue-600 hover:text-blue-900">
+                        Update Stock
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-4 text-gray-500">
+            No products below the threshold of {lowStockThreshold} units.
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-lg shadow p-6">
@@ -104,7 +227,7 @@ function Dashboard() {
                     Date
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total
+                    Total Amount
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
