@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react"
 import { useParams, useNavigate, Link } from "react-router-dom"
 import toast from "react-hot-toast"
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib"
+
+// Add this import at the top of the file
+import PdfGenerator from "./PdfGenerator"
 
 // Helper function to generate a unique ID
 function generateUniqueId() {
@@ -380,395 +382,46 @@ function ViewBill() {
     }
   }
 
+  // Replace the existing generatePDF function with this one
   const generatePDF = async () => {
     try {
-      // Create a new PDF document
-      const pdfDoc = await PDFDocument.create()
-      const page = pdfDoc.addPage([595.28, 841.89]) // A4 size
-
-      // Get fonts
-      const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica)
-      const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
-
-      // Set some constants
-      const margin = 50
-      const titleFontSize = 24
-      const headerFontSize = 12
-      const textFontSize = 10
-      let yPosition = page.getHeight() - margin
-
-      // Add title
-      page.drawText("INVOICE", {
-        x: margin,
-        y: yPosition,
-        size: titleFontSize,
-        font: helveticaBold,
-        color: rgb(0, 0, 0),
-      })
-
-      // Add invoice number
-      page.drawText(`Invoice #: ${bill._id.substring(0, 8)}`, {
-        x: page.getWidth() - margin - 150,
-        y: yPosition,
-        size: headerFontSize,
-        font: helveticaFont,
-        color: rgb(0, 0, 0),
-      })
-
-      yPosition -= 40
-
-      // Add date
-      page.drawText(`Date: ${new Date(bill.billDate).toLocaleDateString()}`, {
-        x: page.getWidth() - margin - 150,
-        y: yPosition,
-        size: headerFontSize,
-        font: helveticaFont,
-        color: rgb(0, 0, 0),
-      })
-
-      yPosition -= 30
-
-      // Add client information
-      page.drawText("Bill To:", {
-        x: margin,
-        y: yPosition,
-        size: headerFontSize,
-        font: helveticaBold,
-        color: rgb(0, 0, 0),
-      })
-
-      yPosition -= 20
-
-      // Find client details
-      const client = clients.find((c) => c._id === bill.clientId)
-
-      if (client) {
-        page.drawText(client.clientName, {
-          x: margin,
-          y: yPosition,
-          size: textFontSize,
-          font: helveticaFont,
-          color: rgb(0, 0, 0),
-        })
-
-        yPosition -= 15
-
-        page.drawText(client.clientNumber, {
-          x: margin,
-          y: yPosition,
-          size: textFontSize,
-          font: helveticaFont,
-          color: rgb(0, 0, 0),
-        })
-
-        yPosition -= 15
-
-        page.drawText(client.clientAddress, {
-          x: margin,
-          y: yPosition,
-          size: textFontSize,
-          font: helveticaFont,
-          color: rgb(0, 0, 0),
-        })
-
-        yPosition -= 15
-
-        if (client.isFiler) {
-          page.drawText(`NTN: ${client.ntnNumber}`, {
-            x: margin,
-            y: yPosition,
-            size: textFontSize,
-            font: helveticaFont,
-            color: rgb(0, 0, 0),
-          })
-
-          yPosition -= 15
-        }
-      } else {
-        page.drawText(bill.clientName, {
-          x: margin,
-          y: yPosition,
-          size: textFontSize,
-          font: helveticaFont,
-          color: rgb(0, 0, 0),
-        })
-
-        yPosition -= 15
+      // Get client details
+      const client = clients.find((c) => c._id === bill.clientId) || {
+        clientName: bill.clientName,
+        clientAddress: "N/A",
+        clientNumber: "N/A",
+        isFiler: false,
+        ntnNumber: "",
       }
 
-      // Add Field Officer and Salesman information
-      if (bill.fieldOfficerName) {
-        page.drawText(`Field Officer: ${bill.fieldOfficerName}`, {
-          x: page.getWidth() - margin - 200,
-          y: yPosition,
-          size: textFontSize,
-          font: helveticaFont,
-          color: rgb(0, 0, 0),
-        })
-        yPosition -= 15
+      // Get field officer details
+      const fieldOfficer = fieldOfficers.find((o) => o._id === bill.fieldOfficerId) || {
+        name: bill.fieldOfficerName || "N/A",
+        phoneNumber: "N/A",
       }
 
-      if (bill.salesmanName) {
-        page.drawText(`Salesman: ${bill.salesmanName}`, {
-          x: page.getWidth() - margin - 200,
-          y: yPosition,
-          size: textFontSize,
-          font: helveticaFont,
-          color: rgb(0, 0, 0),
-        })
-        yPosition -= 15
+      // Get salesman details
+      const salesman = salesmen.find((s) => s._id === bill.salesmanId) || {
+        name: bill.salesmanName || "N/A",
+        phoneNumber: "N/A",
       }
 
-      yPosition -= 20
+      // Get company info
+      const companyInfo = await window.api.getCompanyInfo()
 
-      // Add table headers
-      const tableTop = yPosition
-      const tableLeft = margin
-      const tableRight = page.getWidth() - margin
-      const tableWidth = tableRight - tableLeft
-      const colWidths = [0.4, 0.15, 0.15, 0.15, 0.15] // Proportions
-
-      // Draw table header background
-      page.drawRectangle({
-        x: tableLeft,
-        y: tableTop - 20,
-        width: tableWidth,
-        height: 20,
-        color: rgb(0.9, 0.9, 0.9),
-      })
-
-      // Draw table headers
-      const headers = ["Product", "Quantity", "Rate", "Discount", "Total"]
-      let xPosition = tableLeft
-
-      headers.forEach((header, index) => {
-        page.drawText(header, {
-          x: xPosition + 5,
-          y: tableTop - 15,
-          size: headerFontSize,
-          font: helveticaBold,
-          color: rgb(0, 0, 0),
-        })
-        xPosition += tableWidth * colWidths[index]
-      })
-
-      yPosition = tableTop - 20
-
-      // Draw table rows
-      const regularItems = bill.items.filter((item) => !item.isBonus)
-      const bonusItems = bill.items.filter((item) => item.isBonus)
-
-      // Regular items
-      regularItems.forEach((item) => {
-        yPosition -= 20
-
-        // Draw row background (alternating)
-        page.drawRectangle({
-          x: tableLeft,
-          y: yPosition - 20,
-          width: tableWidth,
-          height: 20,
-          color: rgb(0.95, 0.95, 0.95),
-        })
-
-        // Draw row data
-        xPosition = tableLeft
-
-        // Product name
-        page.drawText(item.productName, {
-          x: xPosition + 5,
-          y: yPosition - 15,
-          size: textFontSize,
-          font: helveticaFont,
-          color: rgb(0, 0, 0),
-        })
-        xPosition += tableWidth * colWidths[0]
-
-        // Quantity
-        page.drawText(item.quantity.toString(), {
-          x: xPosition + 5,
-          y: yPosition - 15,
-          size: textFontSize,
-          font: helveticaFont,
-          color: rgb(0, 0, 0),
-        })
-        xPosition += tableWidth * colWidths[1]
-
-        // Rate
-        page.drawText(`PKR ${item.rate.toFixed(2)}`, {
-          x: xPosition + 5,
-          y: yPosition - 15,
-          size: textFontSize,
-          font: helveticaFont,
-          color: rgb(0, 0, 0),
-        })
-        xPosition += tableWidth * colWidths[2]
-
-        // Discount
-        page.drawText(`${item.discount}%`, {
-          x: xPosition + 5,
-          y: yPosition - 15,
-          size: textFontSize,
-          font: helveticaFont,
-          color: rgb(0, 0, 0),
-        })
-        xPosition += tableWidth * colWidths[3]
-
-        // Total
-        page.drawText(`PKR ${item.total.toFixed(2)}`, {
-          x: xPosition + 5,
-          y: yPosition - 15,
-          size: textFontSize,
-          font: helveticaFont,
-          color: rgb(0, 0, 0),
-        })
-      })
-
-      // Draw total
-      yPosition -= 40
-
-      page.drawText("Total:", {
-        x: tableLeft + tableWidth - 150,
-        y: yPosition,
-        size: headerFontSize,
-        font: helveticaBold,
-        color: rgb(0, 0, 0),
-      })
-
-      page.drawText(`PKR ${bill.totalAmount.toFixed(2)}`, {
-        x: tableLeft + tableWidth - 50,
-        y: yPosition,
-        size: headerFontSize,
-        font: helveticaBold,
-        color: rgb(0, 0, 0),
-      })
-
-      // Bonus items section (if any)
-      if (bonusItems.length > 0) {
-        yPosition -= 40
-
-        page.drawText("Bonus Items (Free):", {
-          x: margin,
-          y: yPosition,
-          size: headerFontSize,
-          font: helveticaBold,
-          color: rgb(0, 0, 0),
-        })
-
-        yPosition -= 20
-
-        // Draw table header background
-        page.drawRectangle({
-          x: tableLeft,
-          y: yPosition - 20,
-          width: tableWidth,
-          height: 20,
-          color: rgb(0.9, 0.9, 0.9),
-        })
-
-        // Draw table headers
-        xPosition = tableLeft
-
-        headers.forEach((header, index) => {
-          page.drawText(header, {
-            x: xPosition + 5,
-            y: yPosition - 15,
-            size: headerFontSize,
-            font: helveticaBold,
-            color: rgb(0, 0, 0),
-          })
-          xPosition += tableWidth * colWidths[index]
-        })
-
-        yPosition = yPosition - 20
-
-        // Draw bonus items
-        bonusItems.forEach((item) => {
-          yPosition -= 20
-
-          // Draw row background
-          page.drawRectangle({
-            x: tableLeft,
-            y: yPosition - 20,
-            width: tableWidth,
-            height: 20,
-            color: rgb(0.95, 0.95, 0.95),
-          })
-
-          // Draw row data
-          xPosition = tableLeft
-
-          // Product name
-          page.drawText(item.productName, {
-            x: xPosition + 5,
-            y: yPosition - 15,
-            size: textFontSize,
-            font: helveticaFont,
-            color: rgb(0, 0, 0),
-          })
-          xPosition += tableWidth * colWidths[0]
-
-          // Quantity
-          page.drawText(item.quantity.toString(), {
-            x: xPosition + 5,
-            y: yPosition - 15,
-            size: textFontSize,
-            font: helveticaFont,
-            color: rgb(0, 0, 0),
-          })
-          xPosition += tableWidth * colWidths[1]
-
-          // Rate
-          page.drawText(`PKR ${item.rate.toFixed(2)}`, {
-            x: xPosition + 5,
-            y: yPosition - 15,
-            size: textFontSize,
-            font: helveticaFont,
-            color: rgb(0, 0, 0),
-          })
-          xPosition += tableWidth * colWidths[2]
-
-          // Discount
-          page.drawText(`${item.discount}%`, {
-            x: xPosition + 5,
-            y: yPosition - 15,
-            size: textFontSize,
-            font: helveticaFont,
-            color: rgb(0, 0, 0),
-          })
-          xPosition += tableWidth * colWidths[3]
-
-          // Total
-          page.drawText(`FREE`, {
-            x: xPosition + 5,
-            y: yPosition - 15,
-            size: textFontSize,
-            font: helveticaFont,
-            color: rgb(0, 0, 0),
-          })
-        })
-      }
-
-      // Footer
-      yPosition = margin + 30
-
-      page.drawText("Thank you for your business!", {
-        x: page.getWidth() / 2 - 80,
-        y: yPosition,
-        size: textFontSize,
-        font: helveticaFont,
-        color: rgb(0, 0, 0),
-      })
-
-      // Save the PDF
-      const pdfBytes = await pdfDoc.save()
+      // Generate PDF
+      const pdfGenerator = new PdfGenerator()
+      const pdfBytes = await pdfGenerator.generateInvoicePdf(bill, client, companyInfo, fieldOfficer, salesman)
 
       // Create a blob and download
       const blob = new Blob([pdfBytes], { type: "application/pdf" })
       const link = document.createElement("a")
       link.href = URL.createObjectURL(blob)
       link.download = `Invoice-${bill._id.substring(0, 8)}.pdf`
+      document.body.appendChild(link)
       link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(link.href)
 
       toast.success("PDF generated successfully")
     } catch (error) {

@@ -38,7 +38,7 @@ function createWindow() {
 
   // Load the index.html file
   mainWindow.loadFile("index.html")
-
+  // mainWindow.webContents.openDevTools()
   // Open DevTools only in development
   if (process.env.NODE_ENV === "development") {
     mainWindow.webContents.openDevTools()
@@ -218,6 +218,16 @@ ipcMain.handle("get-clients", async () => {
   })
 })
 
+// Get a single client
+ipcMain.handle("get-client", async (event, clientId) => {
+  return new Promise((resolve, reject) => {
+    db.clients.findOne({ _id: clientId }, (err, client) => {
+      if (err) reject(err)
+      else resolve(client)
+    })
+  })
+})
+
 ipcMain.handle("add-client", async (event, client) => {
   return new Promise((resolve, reject) => {
     db.clients.insert(client, (err, newClient) => {
@@ -264,6 +274,16 @@ ipcMain.handle("get-field-officers", async () => {
         if (err) reject(err)
         else resolve(fieldOfficers)
       })
+  })
+})
+
+// Get a single field officer
+ipcMain.handle("get-field-officer", async (event, fieldOfficerId) => {
+  return new Promise((resolve, reject) => {
+    db.fieldOfficers.findOne({ _id: fieldOfficerId }, (err, fieldOfficer) => {
+      if (err) reject(err)
+      else resolve(fieldOfficer)
+    })
   })
 })
 
@@ -331,6 +351,16 @@ ipcMain.handle("get-salesmen", async () => {
         if (err) reject(err)
         else resolve(salesmen)
       })
+  })
+})
+
+// Get a single salesman
+ipcMain.handle("get-salesman", async (event, salesmanId) => {
+  return new Promise((resolve, reject) => {
+    db.salesmen.findOne({ _id: salesmanId }, (err, salesman) => {
+      if (err) reject(err)
+      else resolve(salesman)
+    })
   })
 })
 
