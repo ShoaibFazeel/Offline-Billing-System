@@ -2,7 +2,10 @@ import { PDFDocument, rgb, StandardFonts } from "pdf-lib"
 
 // PDF Generator component for creating invoices
 class PdfGenerator {
-  constructor() {
+  constructor(bill, companyInfo) {
+    this.bill = bill
+    this.companyInfo = companyInfo
+    this.doc = null
     this.pageWidth = 595.28 // A4 width in points (8.27 × 11.69 inches)
     this.pageHeight = 841.89 // A4 height in points
     this.margin = 40
@@ -240,8 +243,8 @@ class PdfGenerator {
     yPos -= 20
 
     // Field Officer and Salesman
-    const fieldOfficerText = `F. Officer: ${fieldOfficer.name} ${fieldOfficer.phoneNumber}`
-    const salesmanText = `Salesman: ${salesman.name} ${salesman.phoneNumber}`
+    const fieldOfficerText = `F. Officer ${fieldOfficer.name} ${fieldOfficer.phoneNumber}`
+    const salesmanText = `Salesman ${salesman.name} ${salesman.phoneNumber}`
 
     // Draw field officer info
     page.drawText(fieldOfficerText, {
@@ -280,12 +283,13 @@ class PdfGenerator {
     // Column widths as percentages of table width
     const colWidths = {
       sno: 0.05,
-      description: 0.4,
-      qty: 0.1,
-      bonus: 0.1,
+      description: 0.35,
+      qty: 0.08,
+      bonus: 0.08,
       rate: 0.1,
-      discount: 0.1,
-      total: 0.15,
+      discount: 0.08,
+      extraDisc: 0.08,
+      total: 0.18,
     }
 
     // Calculate column positions
@@ -298,7 +302,7 @@ class PdfGenerator {
       discount:
         this.margin +
         tableWidth * (colWidths.sno + colWidths.description + colWidths.qty + colWidths.bonus + colWidths.rate),
-      total:
+      extraDisc:
         this.margin +
         tableWidth *
           (colWidths.sno +
@@ -307,6 +311,16 @@ class PdfGenerator {
             colWidths.bonus +
             colWidths.rate +
             colWidths.discount),
+      total:
+        this.margin +
+        tableWidth *
+          (colWidths.sno +
+            colWidths.description +
+            colWidths.qty +
+            colWidths.bonus +
+            colWidths.rate +
+            colWidths.discount +
+            colWidths.extraDisc),
     }
 
     // Draw table header
@@ -361,6 +375,14 @@ class PdfGenerator {
 
     page.drawText("Disc", {
       x: colPos.discount + 2,
+      y: yPos - 10,
+      size: this.fontSize.normal,
+      font: boldFont,
+      color: this.colors.black,
+    })
+
+    page.drawText("Ex.Disc", {
+      x: colPos.extraDisc + 2,
       y: yPos - 10,
       size: this.fontSize.normal,
       font: boldFont,
@@ -447,6 +469,16 @@ class PdfGenerator {
 
       page.drawText(discountAmount.toFixed(2), {
         x: colPos.discount + 2,
+        y: yPos + 4,
+        size: this.fontSize.normal,
+        font: regularFont,
+        color: this.colors.black,
+      })
+
+      // Extra discount
+      const extraDiscount = item.extraDiscount || 0
+      page.drawText(extraDiscount.toFixed(2), {
+        x: colPos.extraDisc + 2,
         y: yPos + 4,
         size: this.fontSize.normal,
         font: regularFont,
@@ -647,8 +679,24 @@ class PdfGenerator {
       return sum
     }, 0)
 
-    // Calculate total discount
-    const totalDiscount = grossAmount - bill.totalAmount
+    // Calculate total percentage discount
+    const totalPercentDiscount = bill.items.reduce((sum, item) => {
+      if (!item.isBonus) {
+        return sum + (item.rate * item.quantity * item.discount) / 100
+      }
+      return sum
+    }, 0)
+
+    // Calculate total extra discount
+    const totalExtraDiscount = bill.items.reduce((sum, item) => {
+      if (!item.isBonus) {
+        return sum + (item.extraDiscount || 0)
+      }
+      return sum
+    }, 0)
+
+    // Total discount is the sum of percentage and extra discounts
+    const totalDiscount = totalPercentDiscount + totalExtraDiscount
 
     // Values
     page.drawText(grossAmount.toFixed(2), {

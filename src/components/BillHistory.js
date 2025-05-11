@@ -50,6 +50,10 @@ function BillHistory() {
     return matchesSearch && matchesDateRange
   })
 
+  const calculateGrandTotal = () => {
+    return filteredBills.reduce((total, bill) => total + bill.totalAmount, 0)
+  }
+
   return (
     <div>
       <h1 className="text-3xl font-bold mb-6">Bill History</h1>
@@ -138,6 +142,11 @@ function BillHistory() {
             )}
           </tbody>
         </table>
+        {filteredBills.length > 0 && (
+          <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end">
+            <div className="text-lg font-bold">Grand Total: PKR {calculateGrandTotal().toFixed(2)}</div>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import toast from "react-hot-toast"
 
 function InventoryManagement() {
@@ -11,13 +11,86 @@ function InventoryManagement() {
     productPrice: "",
     hasInfiniteQuantity: true,
     quantity: 0,
+    companyName: "",
+    containerSize: "",
   })
   const [isEditing, setIsEditing] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
 
+  // Add refs for auto-focus
+  const productNameInputRef = useRef(null)
+  const searchInputRef = useRef(null)
+  const formRef = useRef(null)
+
   useEffect(() => {
     fetchProducts()
   }, [])
+
+  useEffect(() => {
+    // Auto-focus on the search input when component mounts
+    if (searchInputRef.current) {
+      searchInputRef.current.focus()
+    }
+  }, [])
+
+  useEffect(() => {
+    // Auto-focus on the product name input when the modal opens
+    if (isModalOpen && productNameInputRef.current) {
+      setTimeout(() => {
+        productNameInputRef.current.focus()
+      }, 100)
+    }
+  }, [isModalOpen])
+
+  // Add keyboard shortcuts for Cmd/Ctrl + A to trigger the add functionality
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Check for Cmd+A (Mac) or Ctrl+A (Windows/Linux)
+      if ((e.metaKey || e.ctrlKey) && (e.key === "a" || e.key === "A")) {
+        // Prevent the default behavior (select all text)
+        e.preventDefault()
+
+        // Only trigger if not in a text input or textarea
+        if (
+          !isModalOpen &&
+          document.activeElement.tagName !== "INPUT" &&
+          document.activeElement.tagName !== "TEXTAREA"
+        ) {
+          setCurrentProduct({
+            productName: "",
+            productPrice: "",
+            hasInfiniteQuantity: true,
+            quantity: 0,
+            companyName: "",
+            containerSize: "",
+          })
+          setIsEditing(false)
+          setIsModalOpen(true)
+        }
+      }
+
+      // Add keyboard shortcuts for modal when it's open
+      if (isModalOpen) {
+        // Cmd/Ctrl + S to submit form
+        if ((e.metaKey || e.ctrlKey) && (e.key === "s" || e.key === "S")) {
+          e.preventDefault()
+          if (formRef.current) {
+            formRef.current.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }))
+          }
+        }
+        // Cmd/Ctrl + C to close modal
+        else if ((e.metaKey || e.ctrlKey) && (e.key === "c" || e.key === "C")) {
+          e.preventDefault()
+          setIsModalOpen(false)
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [isModalOpen])
 
   const fetchProducts = async () => {
     try {
@@ -70,6 +143,8 @@ function InventoryManagement() {
         productPrice: "",
         hasInfiniteQuantity: true,
         quantity: 0,
+        companyName: "",
+        containerSize: "",
       })
       setIsEditing(false)
       fetchProducts()
@@ -89,6 +164,10 @@ function InventoryManagement() {
     setCurrentProduct(productToEdit)
     setIsEditing(true)
     setIsModalOpen(true)
+    // Focus on the product name input when the edit modal opens
+    if (productNameInputRef.current) {
+      productNameInputRef.current.focus()
+    }
   }
 
   const filteredProducts = products.filter((product) =>
@@ -106,9 +185,15 @@ function InventoryManagement() {
               productPrice: "",
               hasInfiniteQuantity: true,
               quantity: 0,
+              companyName: "",
+              containerSize: "",
             })
             setIsEditing(false)
             setIsModalOpen(true)
+            // Focus on the product name input when the add modal opens
+            if (productNameInputRef.current) {
+              productNameInputRef.current.focus()
+            }
           }}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
         >
@@ -123,6 +208,7 @@ function InventoryManagement() {
           className="w-full p-2 border border-gray-300 rounded-md"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
+          ref={searchInputRef}
         />
       </div>
 
@@ -132,6 +218,12 @@ function InventoryManagement() {
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Product Name
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Company
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Container Size
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -149,6 +241,8 @@ function InventoryManagement() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {product.productName}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.companyName || "-"}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.containerSize || "-"}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     PKR{product.productPrice.toFixed(2)}
                   </td>
@@ -170,7 +264,7 @@ function InventoryManagement() {
               ))
             ) : (
               <tr>
-                <td colSpan="4" className="px-6 py-4 text-center text-sm text-gray-500">
+                <td colSpan="6" className="px-6 py-4 text-center text-sm text-gray-500">
                   {searchTerm
                     ? "No products found matching your search."
                     : "No products available. Add your first product!"}
@@ -185,8 +279,18 @@ function InventoryManagement() {
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-semibold mb-4">{isEditing ? "Edit Product" : "Add New Product"}</h2>
-            <form onSubmit={handleSubmit}>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">{isEditing ? "Edit Product" : "Add New Product"}</h2>
+              <div className="text-sm text-gray-500">
+                <span className="mr-2">
+                  <kbd className="px-1 py-0.5 bg-gray-100 border border-gray-300 rounded">Ctrl+S</kbd> Save
+                </span>
+                <span>
+                  <kbd className="px-1 py-0.5 bg-gray-100 border border-gray-300 rounded">Ctrl+C</kbd> Cancel
+                </span>
+              </div>
+            </div>
+            <form onSubmit={handleSubmit} ref={formRef}>
               <div className="mb-4">
                 <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="productName">
                   Product Name *
@@ -199,6 +303,7 @@ function InventoryManagement() {
                   onChange={handleInputChange}
                   className="w-full p-2 border border-gray-300 rounded-md"
                   required
+                  ref={productNameInputRef}
                 />
               </div>
               <div className="mb-4">
@@ -215,6 +320,33 @@ function InventoryManagement() {
                   step="0.01"
                   min="0"
                   required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="companyName">
+                  Company Name
+                </label>
+                <input
+                  type="text"
+                  id="companyName"
+                  name="companyName"
+                  value={currentProduct.companyName}
+                  onChange={handleInputChange}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="containerSize">
+                  Container Size
+                </label>
+                <input
+                  type="text"
+                  id="containerSize"
+                  name="containerSize"
+                  value={currentProduct.containerSize}
+                  onChange={handleInputChange}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  placeholder="e.g., 500ml, 1kg, etc."
                 />
               </div>
               <div className="mb-4">

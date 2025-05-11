@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import toast from "react-hot-toast"
 
 function SalesmanManagement() {
@@ -13,8 +13,50 @@ function SalesmanManagement() {
   const [isEditing, setIsEditing] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
 
+  // Add ref for auto-focus
+  const nameInputRef = useRef(null)
+  const searchInputRef = useRef(null)
+
   useEffect(() => {
     fetchSalesmen()
+
+    // Auto-focus search input when component mounts
+    if (searchInputRef.current) {
+      searchInputRef.current.focus()
+    }
+  }, [])
+
+  // Add effect for modal auto-focus
+  useEffect(() => {
+    if (isModalOpen && nameInputRef.current) {
+      nameInputRef.current.focus()
+    }
+  }, [isModalOpen])
+
+  // Add a keyboard shortcut for Cmd/Ctrl + A to trigger the add functionality
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Check for Cmd+A (Mac) or Ctrl+A (Windows/Linux)
+      if ((e.metaKey || e.ctrlKey) && (e.key === "a" || e.key === "A")) {
+        // Prevent the default behavior (select all text)
+        e.preventDefault()
+
+        // Only trigger if not in a text input or textarea
+        if (document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") {
+          setCurrentSalesman({
+            name: "",
+            phoneNumber: "",
+          })
+          setIsEditing(false)
+          setIsModalOpen(true)
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+    }
   }, [])
 
   const fetchSalesmen = async () => {
@@ -115,6 +157,7 @@ function SalesmanManagement() {
           className="w-full p-2 border border-gray-300 rounded-md"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
+          ref={searchInputRef}
         />
       </div>
 
@@ -178,6 +221,7 @@ function SalesmanManagement() {
                   onChange={handleInputChange}
                   className="w-full p-2 border border-gray-300 rounded-md"
                   required
+                  ref={nameInputRef}
                 />
               </div>
               <div className="mb-4">
