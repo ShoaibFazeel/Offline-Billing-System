@@ -35,6 +35,9 @@ function ViewBill() {
   const fieldOfficerSearchRef = useRef(null)
   const salesmanSearchRef = useRef(null)
   const productSearchRefs = useRef({})
+  // First, add refs for the product dropdowns
+  // Add these after the existing refs:
+  const productDropdownRefs = useRef({})
 
   useEffect(() => {
     fetchBill()
@@ -514,6 +517,7 @@ function ViewBill() {
     }
   }
 
+  // Replace the handleProductKeyDown function with this improved version:
   const handleProductKeyDown = (e, index) => {
     const filtered = getFilteredProducts(index)
     if (!productSearchTerms[index] || filtered.length === 0) return
@@ -521,25 +525,101 @@ function ViewBill() {
     // Arrow down
     if (e.key === "ArrowDown") {
       e.preventDefault()
-      setSelectedProductIndex((prev) => ({
-        ...prev,
-        [index]: Math.min((prev[index] || -1) + 1, filtered.length - 1),
-      }))
+      setSelectedProductIndex((prev) => {
+        const currentIndex = prev[index] !== undefined ? prev[index] : -1
+        return {
+          ...prev,
+          [index]: Math.min(currentIndex + 1, filtered.length - 1),
+        }
+      })
     }
     // Arrow up
     else if (e.key === "ArrowUp") {
       e.preventDefault()
-      setSelectedProductIndex((prev) => ({
-        ...prev,
-        [index]: Math.max((prev[index] || 0) - 1, 0),
-      }))
+      setSelectedProductIndex((prev) => {
+        const currentIndex = prev[index] !== undefined ? prev[index] : 0
+        return {
+          ...prev,
+          [index]: Math.max(currentIndex - 1, 0),
+        }
+      })
     }
     // Enter
-    else if (e.key === "Enter" && (selectedProductIndex[index] || 0) >= 0) {
+    else if (e.key === "Enter") {
       e.preventDefault()
-      handleProductSelect(index, filtered[selectedProductIndex[index] || 0])
+      const currentIndex = selectedProductIndex[index]
+      if (currentIndex !== undefined && currentIndex >= 0 && currentIndex < filtered.length) {
+        handleProductSelect(index, filtered[currentIndex])
+      } else if (filtered.length > 0) {
+        // If no item is selected but there are items in the dropdown, select the first one
+        handleProductSelect(index, filtered[0])
+      }
+    }
+    // Escape
+    else if (e.key === "Escape") {
+      e.preventDefault()
+      setProductSearchTerms((prev) => ({
+        ...prev,
+        [index]: "",
+      }))
     }
   }
+
+  // Add this useEffect after the existing useEffects:
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      // Handle client dropdown
+      if (clientSearchRef.current && !clientSearchRef.current.contains(event.target)) {
+        setClientSearchTerm("")
+      }
+
+      // Handle field officer dropdown
+      if (fieldOfficerSearchRef.current && !fieldOfficerSearchRef.current.contains(event.target)) {
+        setFieldOfficerSearchTerm("")
+      }
+
+      // Handle salesman dropdown
+      if (salesmanSearchRef.current && !salesmanSearchRef.current.contains(event.target)) {
+        setSalesmanSearchTerm("")
+      }
+
+      // Handle product dropdowns
+      Object.keys(productSearchRefs.current).forEach((index) => {
+        const searchRef = productSearchRefs.current[index]
+        const dropdownRef = productDropdownRefs.current[index]
+
+        if (searchRef && !searchRef.contains(event.target) && (!dropdownRef || !dropdownRef.contains(event.target))) {
+          setProductSearchTerms((prev) => ({
+            ...prev,
+            [index]: "",
+          }))
+        }
+      })
+    }
+
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [])
+
+  // Add this useEffect to initialize product indices when search terms change
+  // Add this after the other useEffect hooks:
+
+  // Add this useEffect to initialize the selected product index when search terms change
+  useEffect(() => {
+    // When a product search term is added, initialize its selected index to 0 (first item)
+    Object.keys(productSearchTerms).forEach((index) => {
+      if (productSearchTerms[index] && getFilteredProducts(Number(index)).length > 0) {
+        if (selectedProductIndex[index] === undefined) {
+          setSelectedProductIndex((prev) => ({
+            ...prev,
+            [index]: 0,
+          }))
+        }
+      }
+    })
+  }, [productSearchTerms])
 
   // Auto-focus when editing starts
   useEffect(() => {
@@ -554,6 +634,14 @@ function ViewBill() {
 
   if (!bill) {
     return <div className="text-center py-10">Bill not found</div>
+  }
+
+  // Helper function to calculate extra discount amount
+  const calculateExtraDiscountAmount = (item) => {
+    // First calculate the amount after regular discount
+    const afterRegularDiscount = item.quantity * item.rate * (1 - item.discount / 100)
+    // Then calculate the extra discount amount
+    return afterRegularDiscount * (item.extraDiscount / 100)
   }
 
   return (
@@ -816,7 +904,7 @@ function ViewBill() {
                   {showDiscountAsAmount ? "Discount Amt" : "Discount %"}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Extra Disc %
+                  {showDiscountAsAmount ? "Extra Disc Amt" : "Extra Disc %"}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Total
@@ -844,12 +932,15 @@ function ViewBill() {
                           ref={(el) => (productSearchRefs.current[index] = el)}
                         />
                         {productSearchTerms[index] && getFilteredProducts(index).length > 0 && (
-                          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                          <div
+                            className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto"
+                            ref={(el) => (productDropdownRefs.current[index] = el)}
+                          >
                             {getFilteredProducts(index).map((product, productIndex) => (
                               <div
                                 key={product._id}
                                 className={`p-2 hover:bg-gray-100 cursor-pointer ${
-                                  productIndex === selectedProductIndex[index] ? "bg-blue-100" : ""
+                                  selectedProductIndex[index] === productIndex ? "bg-blue-100" : ""
                                 }`}
                                 onClick={() => handleProductSelect(index, product)}
                               >
@@ -948,6 +1039,8 @@ function ViewBill() {
                         min="0"
                         max="100"
                       />
+                    ) : showDiscountAsAmount ? (
+                      `PKR ${calculateExtraDiscountAmount(item).toFixed(2)}`
                     ) : (
                       `${item.extraDiscount || 0}%`
                     )}

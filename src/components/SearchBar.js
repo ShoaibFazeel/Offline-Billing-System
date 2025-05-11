@@ -2,24 +2,40 @@
 
 import { useState, useRef, useEffect } from "react"
 
-const SearchBar = ({ placeholder, items, displayProperty, onSelect, className = "", initialValue = "" }) => {
-  const [searchTerm, setSearchTerm] = useState(initialValue)
+const SearchBar = ({
+  placeholder,
+  items = [],
+  displayProperty,
+  onSelect,
+  className = "",
+  initialValue = "",
+  searchTerm,
+  setSearchTerm,
+}) => {
+  // If searchTerm and setSearchTerm are provided, use them; otherwise, manage state internally
+  const isExternalState = searchTerm !== undefined && setSearchTerm !== undefined
+  const [internalSearchTerm, setInternalSearchTerm] = useState(initialValue)
   const [filteredItems, setFilteredItems] = useState([])
   const [showDropdown, setShowDropdown] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const inputRef = useRef(null)
   const dropdownRef = useRef(null)
 
+  // Use the appropriate search term based on whether external state is provided
+  const currentSearchTerm = isExternalState ? searchTerm : internalSearchTerm
+
   // Filter items based on search term
   useEffect(() => {
-    if (!searchTerm.trim()) {
+    if (!currentSearchTerm.trim() || !items || items.length === 0) {
       setFilteredItems([])
       return
     }
 
-    const filtered = items.filter((item) => item[displayProperty].toLowerCase().includes(searchTerm.toLowerCase()))
+    const filtered = items.filter(
+      (item) => item[displayProperty] && item[displayProperty].toLowerCase().includes(currentSearchTerm.toLowerCase()),
+    )
     setFilteredItems(filtered.slice(0, 10)) // Limit to 10 results for performance
-  }, [searchTerm, items, displayProperty])
+  }, [currentSearchTerm, items, displayProperty])
 
   // Scroll selected item into view if needed
   useEffect(() => {
@@ -33,14 +49,26 @@ const SearchBar = ({ placeholder, items, displayProperty, onSelect, className = 
 
   const handleInputChange = (e) => {
     const value = e.target.value
-    setSearchTerm(value)
+    if (isExternalState) {
+      setSearchTerm(value)
+    } else {
+      setInternalSearchTerm(value)
+    }
     setShowDropdown(true)
     setSelectedIndex(-1)
   }
 
   const handleItemClick = (item) => {
-    onSelect(item)
-    setSearchTerm(item[displayProperty])
+    if (onSelect) {
+      onSelect(item)
+    }
+
+    if (isExternalState) {
+      setSearchTerm(item[displayProperty])
+    } else {
+      setInternalSearchTerm(item[displayProperty])
+    }
+
     setShowDropdown(false)
     setSelectedIndex(-1)
   }
@@ -88,10 +116,10 @@ const SearchBar = ({ placeholder, items, displayProperty, onSelect, className = 
       <input
         ref={inputRef}
         type="text"
-        value={searchTerm}
+        value={currentSearchTerm}
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
-        onFocus={() => setShowDropdown(searchTerm.trim() !== "")}
+        onFocus={() => setShowDropdown(currentSearchTerm.trim() !== "")}
         placeholder={placeholder}
         className="w-full p-2 border border-gray-300 rounded-md"
         autoComplete="off"

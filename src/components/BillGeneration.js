@@ -84,30 +84,24 @@ function BillGeneration() {
     const handleClickOutside = (event) => {
       // Client dropdown
       if (
-        clientDropdownRef.current &&
-        !clientDropdownRef.current.contains(event.target) &&
-        clientSearchRef.current &&
-        !clientSearchRef.current.contains(event.target)
+        (clientDropdownRef.current && !clientDropdownRef.current.contains(event.target)) ||
+        (clientSearchRef.current && !clientSearchRef.current.contains(event.target))
       ) {
         setClientSearchTerm("")
       }
 
       // Field officer dropdown
       if (
-        fieldOfficerDropdownRef.current &&
-        !fieldOfficerDropdownRef.current.contains(event.target) &&
-        fieldOfficerSearchRef.current &&
-        !fieldOfficerSearchRef.current.contains(event.target)
+        (fieldOfficerDropdownRef.current && !fieldOfficerDropdownRef.current.contains(event.target)) ||
+        (fieldOfficerSearchRef.current && !fieldOfficerSearchRef.current.contains(event.target))
       ) {
         setFieldOfficerSearchTerm("")
       }
 
       // Salesman dropdown
       if (
-        salesmanDropdownRef.current &&
-        !salesmanDropdownRef.current.contains(event.target) &&
-        salesmanSearchRef.current &&
-        !salesmanSearchRef.current.contains(event.target)
+        (salesmanDropdownRef.current && !salesmanDropdownRef.current.contains(event.target)) ||
+        (salesmanSearchRef.current && !salesmanSearchRef.current.contains(event.target))
       ) {
         setSalesmanSearchTerm("")
       }
@@ -682,14 +676,18 @@ function BillGeneration() {
     // Arrow down
     if (e.key === "ArrowDown") {
       e.preventDefault()
-      const nextIndex = Math.min((selectedClientIndex || -1) + 1, filtered.length - 1)
-      setSelectedClientIndex(nextIndex)
+      setSelectedClientIndex((prev) => {
+        const nextIndex = prev === -1 ? 0 : Math.min(prev + 1, filtered.length - 1)
+        return nextIndex
+      })
     }
     // Arrow up
     else if (e.key === "ArrowUp") {
       e.preventDefault()
-      const prevIndex = Math.max((selectedClientIndex || 0) - 1, 0)
-      setSelectedClientIndex(prevIndex)
+      setSelectedClientIndex((prev) => {
+        const prevIndex = prev === -1 ? 0 : Math.max(prev - 1, 0)
+        return prevIndex
+      })
     }
     // Enter
     else if (e.key === "Enter" && selectedClientIndex >= 0) {
@@ -698,6 +696,7 @@ function BillGeneration() {
     }
     // Escape
     else if (e.key === "Escape") {
+      e.preventDefault()
       setClientSearchTerm("")
     }
   }
@@ -718,14 +717,18 @@ function BillGeneration() {
     // Arrow down
     if (e.key === "ArrowDown") {
       e.preventDefault()
-      const nextIndex = Math.min((selectedFieldOfficerIndex || -1) + 1, filtered.length - 1)
-      setSelectedFieldOfficerIndex(nextIndex)
+      setSelectedFieldOfficerIndex((prev) => {
+        const nextIndex = prev === -1 ? 0 : Math.min(prev + 1, filtered.length - 1)
+        return nextIndex
+      })
     }
     // Arrow up
     else if (e.key === "ArrowUp") {
       e.preventDefault()
-      const prevIndex = Math.max((selectedFieldOfficerIndex || 0) - 1, 0)
-      setSelectedFieldOfficerIndex(prevIndex)
+      setSelectedFieldOfficerIndex((prev) => {
+        const prevIndex = prev === -1 ? 0 : Math.max(prev - 1, 0)
+        return prevIndex
+      })
     }
     // Enter
     else if (e.key === "Enter" && selectedFieldOfficerIndex >= 0) {
@@ -734,6 +737,7 @@ function BillGeneration() {
     }
     // Escape
     else if (e.key === "Escape") {
+      e.preventDefault()
       setFieldOfficerSearchTerm("")
     }
   }
@@ -750,14 +754,18 @@ function BillGeneration() {
     // Arrow down
     if (e.key === "ArrowDown") {
       e.preventDefault()
-      const nextIndex = Math.min((selectedSalesmanIndex || -1) + 1, filtered.length - 1)
-      setSelectedSalesmanIndex(nextIndex)
+      setSelectedSalesmanIndex((prev) => {
+        const nextIndex = prev === -1 ? 0 : Math.min(prev + 1, filtered.length - 1)
+        return nextIndex
+      })
     }
     // Arrow up
     else if (e.key === "ArrowUp") {
       e.preventDefault()
-      const prevIndex = Math.max((selectedSalesmanIndex || 0) - 1, 0)
-      setSelectedSalesmanIndex(prevIndex)
+      setSelectedSalesmanIndex((prev) => {
+        const prevIndex = prev === -1 ? 0 : Math.max(prev - 1, 0)
+        return prevIndex
+      })
     }
     // Enter
     else if (e.key === "Enter" && selectedSalesmanIndex >= 0) {
@@ -766,6 +774,7 @@ function BillGeneration() {
     }
     // Escape
     else if (e.key === "Escape") {
+      e.preventDefault()
       setSalesmanSearchTerm("")
     }
   }
@@ -1445,30 +1454,58 @@ function BillGeneration() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {billItems.map((item, index) => (
-                    <tr key={item.id} className={item.isBonus ? "bg-green-50" : ""}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {item.productName}
-                        {item.bonusItems && item.bonusItems.length > 0 && (
-                          <div className="text-xs text-gray-500 mt-1">+ {item.bonusItems.length} bonus item(s)</div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.quantity}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">PKR {item.rate.toFixed(2)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.discount}%</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.extraDiscount}%</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">PKR {item.total.toFixed(2)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button
-                          onClick={() => editItemFromBill(index)}
-                          className="text-blue-600 hover:text-blue-900 mr-3"
-                        >
-                          Edit
-                        </button>
-                        <button onClick={() => removeItemFromBill(index)} className="text-red-600 hover:text-red-900">
-                          Remove
-                        </button>
-                      </td>
-                    </tr>
+                    <>
+                      <tr key={item.id} className={item.isBonus ? "bg-green-50" : ""}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {item.productName}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.quantity}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          PKR {item.rate.toFixed(2)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.discount}%</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.extraDiscount}%</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          PKR {item.total.toFixed(2)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <button
+                            onClick={() => editItemFromBill(index)}
+                            className="text-blue-600 hover:text-blue-900 mr-3"
+                          >
+                            Edit
+                          </button>
+                          <button onClick={() => removeItemFromBill(index)} className="text-red-600 hover:text-red-900">
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                      {/* Display bonus items if any */}
+                      {item.bonusItems &&
+                        item.bonusItems.length > 0 &&
+                        item.bonusItems.map((bonusItem, bonusIndex) => (
+                          <tr key={`${item.id}-bonus-${bonusIndex}`} className="bg-green-50">
+                            <td className="px-6 py-4 pl-10 whitespace-nowrap text-sm font-medium text-gray-900">
+                              <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 mr-2">
+                                BONUS
+                              </span>
+                              {bonusItem.productName}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{bonusItem.quantity}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              PKR {bonusItem.rate.toFixed(2)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{bonusItem.discount}%</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">-</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                                FREE
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">-</td>
+                          </tr>
+                        ))}
+                    </>
                   ))}
                 </tbody>
               </table>

@@ -16,6 +16,7 @@ function FieldOfficerManagement() {
   // Add ref for auto-focus
   const nameInputRef = useRef(null)
   const searchInputRef = useRef(null)
+  const formRef = useRef(null)
 
   useEffect(() => {
     fetchFieldOfficers()
@@ -53,13 +54,29 @@ function FieldOfficerManagement() {
           setIsModalOpen(true)
         }
       }
+
+      // Add keyboard shortcuts for modal when it's open
+      if (isModalOpen) {
+        // Cmd/Ctrl + S to submit form
+        if ((e.metaKey || e.ctrlKey) && (e.key === "s" || e.key === "S")) {
+          e.preventDefault()
+          if (formRef.current) {
+            formRef.current.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }))
+          }
+        }
+        // Cmd/Ctrl + C to close modal
+        else if ((e.metaKey || e.ctrlKey) && (e.key === "c" || e.key === "C")) {
+          e.preventDefault()
+          setIsModalOpen(false)
+        }
+      }
     }
 
     window.addEventListener("keydown", handleKeyDown)
     return () => {
       window.removeEventListener("keydown", handleKeyDown)
     }
-  }, [])
+  }, [isModalOpen])
 
   const fetchFieldOfficers = async () => {
     try {
@@ -209,8 +226,18 @@ function FieldOfficerManagement() {
       {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-xl font-semibold mb-4">{isEditing ? "Edit Field Officer" : "Add New Field Officer"}</h2>
-            <form onSubmit={handleSubmit}>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">{isEditing ? "Edit Field Officer" : "Add New Field Officer"}</h2>
+              <div className="text-sm text-gray-500">
+                <span className="mr-2">
+                  <kbd className="px-1 py-0.5 bg-gray-100 border border-gray-300 rounded">Ctrl+S</kbd> Save
+                </span>
+                <span>
+                  <kbd className="px-1 py-0.5 bg-gray-100 border border-gray-300 rounded">Ctrl+C</kbd> Cancel
+                </span>
+              </div>
+            </div>
+            <form onSubmit={handleSubmit} ref={formRef}>
               <div className="mb-4">
                 <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="name">
                   Name *
