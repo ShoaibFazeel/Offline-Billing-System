@@ -946,6 +946,7 @@ function BillGeneration() {
                         className="w-full p-2 border border-gray-300 rounded-md"
                         step="0.01"
                         min="0"
+                        disabled={true}
                       />
                     </div>
                     <div className="col-span-1">
@@ -957,6 +958,7 @@ function BillGeneration() {
                         className="w-full p-2 border border-gray-300 rounded-md"
                         min="0"
                         max="100"
+                        disabled={true}
                       />
                     </div>
                     <div className="col-span-2">

@@ -18,26 +18,17 @@ function Dashboard() {
   const [companyInfo, setCompanyInfo] = useState(null)
 
   useEffect(() => {
-    console.log("Dashboard component mounted")
-
     const fetchStats = async () => {
       try {
-        console.log("Fetching stats...")
-        console.log("API available:", !!window.api)
-
         if (!window.api) {
           throw new Error("API not available")
         }
 
         const products = await window.api.getProducts()
-        console.log("Products fetched:", products)
         setAllProducts(products)
 
         const clients = await window.api.getClients()
-        console.log("Clients fetched:", clients)
-
         const bills = await window.api.getBills()
-        console.log("Bills fetched:", bills)
 
         // Fetch company info
         const company = await window.api.getCompanyInfo()
@@ -51,7 +42,6 @@ function Dashboard() {
         })
         setLoading(false)
       } catch (error) {
-        console.error("Error fetching dashboard stats:", error)
         setError(error.message)
         setLoading(false)
       }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { HashRouter as Router, Routes, Route, Link } from "react-router-dom"
 import Dashboard from "./components/Dashboard"
 import InventoryManagement from "./components/InventoryManagement"
@@ -14,20 +14,8 @@ import SalesmanManagement from "./components/SalesmanManagement"
 import { Toaster } from "react-hot-toast"
 import "./index.css"
 
-// Add a console log to check if the component is mounting
-console.log("App component is being rendered")
-
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
-
-  // Add a check to verify the API is available
-  useEffect(() => {
-    if (window.api) {
-      console.log("API is available")
-    } else {
-      console.error("API is not available")
-    }
-  }, [])
 
   return (
     <Router>

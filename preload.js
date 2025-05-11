@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld("api", {
   addClient: (client) => ipcRenderer.invoke("add-client", client),
   updateClient: (client) => ipcRenderer.invoke("update-client", client),
   importClients: (clients) => ipcRenderer.invoke("import-clients", clients),
+  getClient: (clientId) => ipcRenderer.invoke("get-client", clientId),
 
   // Field Officers
   getFieldOfficers: () => ipcRenderer.invoke("get-field-officers"),
@@ -22,6 +23,7 @@ contextBridge.exposeInMainWorld("api", {
   deleteFieldOfficer: (id) => ipcRenderer.invoke("delete-field-officer", id),
   clearFieldOfficers: () => ipcRenderer.invoke("clear-field-officers"),
   importFieldOfficers: (fieldOfficers) => ipcRenderer.invoke("import-field-officers", fieldOfficers),
+  getFieldOfficer: (fieldOfficerId) => ipcRenderer.invoke("get-field-officer", fieldOfficerId),
 
   // Salesmen
   getSalesmen: () => ipcRenderer.invoke("get-salesmen"),
@@ -30,6 +32,7 @@ contextBridge.exposeInMainWorld("api", {
   deleteSalesman: (id) => ipcRenderer.invoke("delete-salesman", id),
   clearSalesmen: () => ipcRenderer.invoke("clear-salesmen"),
   importSalesmen: (salesmen) => ipcRenderer.invoke("import-salesmen", salesmen),
+  getSalesman: (salesmanId) => ipcRenderer.invoke("get-salesman", salesmanId),
 
   // Bills
   getBills: () => ipcRenderer.invoke("get-bills"),
@@ -52,5 +55,3 @@ contextBridge.exposeInMainWorld("api", {
   clearClients: () => ipcRenderer.invoke("clear-clients"),
   clearBills: () => ipcRenderer.invoke("clear-bills"),
 })
-
-console.log("Preload script loaded")
