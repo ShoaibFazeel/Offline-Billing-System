@@ -662,7 +662,18 @@ function ViewBill() {
           <h1 className="text-3xl font-bold">Bill #{bill._id.substring(0, 8)}</h1>
         </div>
         <div className="flex space-x-2 items-center">
-          <div className="flex items-center mr-4">
+          {!isEditing && (
+            <div className="flex items-center mr-4">
+              <span className="mr-2">Show discount as:</span>
+              <button
+                onClick={() => setShowDiscountAsAmount(!showDiscountAsAmount)}
+                className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-1 rounded-md"
+              >
+                {showDiscountAsAmount ? "Amount" : "Percentage"}
+              </button>
+            </div>
+          )}
+          {/* <div className="flex items-center mr-4">
             <span className="mr-2">Show discount as:</span>
             <button
               onClick={() => setShowDiscountAsAmount(!showDiscountAsAmount)}
@@ -670,7 +681,7 @@ function ViewBill() {
             >
               {showDiscountAsAmount ? "Amount" : "Percentage"}
             </button>
-          </div>
+          </div> */}
           {isEditing ? (
             <>
               <button onClick={saveBill} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md">
