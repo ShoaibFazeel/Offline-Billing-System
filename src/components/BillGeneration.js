@@ -84,24 +84,30 @@ function BillGeneration() {
     const handleClickOutside = (event) => {
       // Client dropdown
       if (
-        (clientDropdownRef.current && !clientDropdownRef.current.contains(event.target)) ||
-        (clientSearchRef.current && !clientSearchRef.current.contains(event.target))
+        clientDropdownRef.current &&
+        !clientDropdownRef.current.contains(event.target) &&
+        clientSearchRef.current &&
+        !clientSearchRef.current.contains(event.target)
       ) {
         setClientSearchTerm("")
       }
 
       // Field officer dropdown
       if (
-        (fieldOfficerDropdownRef.current && !fieldOfficerDropdownRef.current.contains(event.target)) ||
-        (fieldOfficerSearchRef.current && !fieldOfficerSearchRef.current.contains(event.target))
+        fieldOfficerDropdownRef.current &&
+        !fieldOfficerDropdownRef.current.contains(event.target) &&
+        fieldOfficerSearchRef.current &&
+        !fieldOfficerSearchRef.current.contains(event.target)
       ) {
         setFieldOfficerSearchTerm("")
       }
 
       // Salesman dropdown
       if (
-        (salesmanDropdownRef.current && !salesmanDropdownRef.current.contains(event.target)) ||
-        (salesmanSearchRef.current && !salesmanSearchRef.current.contains(event.target))
+        salesmanDropdownRef.current &&
+        !salesmanDropdownRef.current.contains(event.target) &&
+        salesmanSearchRef.current &&
+        !salesmanSearchRef.current.contains(event.target)
       ) {
         setSalesmanSearchTerm("")
       }
@@ -981,7 +987,7 @@ function BillGeneration() {
                 {filteredClients.map((client, index) => (
                   <div
                     key={client._id}
-                    className={`p-2 hover:bg-gray-100 cursor-pointer ${
+                    className={`p-2 hover:bg-gray-100 cursor-pointer client-dropdown-item ${
                       index === selectedClientIndex ? "bg-blue-100" : ""
                     }`}
                     onClick={() => handleClientSelect(client)}
@@ -1039,7 +1045,7 @@ function BillGeneration() {
                 {filteredFieldOfficers.map((officer, index) => (
                   <div
                     key={officer._id}
-                    className={`p-2 hover:bg-gray-100 cursor-pointer ${
+                    className={`p-2 hover:bg-gray-100 cursor-pointer field-officer-dropdown-item ${
                       index === selectedFieldOfficerIndex ? "bg-blue-100" : ""
                     }`}
                     onClick={() => handleFieldOfficerSelect(officer)}
@@ -1078,7 +1084,7 @@ function BillGeneration() {
                 {filteredSalesmen.map((salesman, index) => (
                   <div
                     key={salesman._id}
-                    className={`p-2 hover:bg-gray-100 cursor-pointer ${
+                    className={`p-2 hover:bg-gray-100 cursor-pointer salesman-dropdown-item ${
                       index === selectedSalesmanIndex ? "bg-blue-100" : ""
                     }`}
                     onClick={() => handleSalesmanSelect(salesman)}
@@ -1153,7 +1159,14 @@ function BillGeneration() {
                         onClick={() => handleProductSelect(product._id)}
                       >
                         <div className="font-medium">{product.productName}</div>
-                        <div className="text-sm text-gray-500">
+                        {(product.companyName || product.containerSize) && (
+                          <div className="text-xs text-gray-600 mt-0.5">
+                            {product.companyName && <span>{product.companyName}</span>}
+                            {product.companyName && product.containerSize && <span> - </span>}
+                            {product.containerSize && <span>{product.containerSize}</span>}
+                          </div>
+                        )}
+                        <div className="text-sm text-gray-500 mt-0.5">
                           PKR {product.productPrice.toFixed(2)}
                           {product.hasInfiniteQuantity === false && ` - ${product.quantity} in stock`}
                         </div>
@@ -1305,7 +1318,14 @@ function BillGeneration() {
                                 onClick={() => handleBonusProductSelect(bonusIndex, product._id)}
                               >
                                 <div className="font-medium">{product.productName}</div>
-                                <div className="text-sm text-gray-500">
+                                {(product.companyName || product.containerSize) && (
+                                  <div className="text-xs text-gray-600 mt-0.5">
+                                    {product.companyName && <span>{product.companyName}</span>}
+                                    {product.companyName && product.containerSize && <span> - </span>}
+                                    {product.containerSize && <span>{product.containerSize}</span>}
+                                  </div>
+                                )}
+                                <div className="text-sm text-gray-500 mt-0.5">
                                   PKR {product.productPrice.toFixed(2)}
                                   {product.hasInfiniteQuantity === false && ` - ${product.quantity} in stock`}
                                 </div>

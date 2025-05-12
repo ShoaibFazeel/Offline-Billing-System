@@ -569,17 +569,29 @@ function ViewBill() {
   useEffect(() => {
     const handleClickOutside = (event) => {
       // Handle client dropdown
-      if (clientSearchRef.current && !clientSearchRef.current.contains(event.target)) {
+      if (
+        clientSearchRef.current &&
+        !clientSearchRef.current.contains(event.target) &&
+        !event.target.closest(".client-dropdown-item")
+      ) {
         setClientSearchTerm("")
       }
 
       // Handle field officer dropdown
-      if (fieldOfficerSearchRef.current && !fieldOfficerSearchRef.current.contains(event.target)) {
+      if (
+        fieldOfficerSearchRef.current &&
+        !fieldOfficerSearchRef.current.contains(event.target) &&
+        !event.target.closest(".field-officer-dropdown-item")
+      ) {
         setFieldOfficerSearchTerm("")
       }
 
       // Handle salesman dropdown
-      if (salesmanSearchRef.current && !salesmanSearchRef.current.contains(event.target)) {
+      if (
+        salesmanSearchRef.current &&
+        !salesmanSearchRef.current.contains(event.target) &&
+        !event.target.closest(".salesman-dropdown-item")
+      ) {
         setSalesmanSearchTerm("")
       }
 
@@ -736,7 +748,7 @@ function ViewBill() {
                     {filteredClients.map((client, index) => (
                       <div
                         key={client._id}
-                        className={`p-2 hover:bg-gray-100 cursor-pointer ${
+                        className={`p-2 hover:bg-gray-100 cursor-pointer client-dropdown-item ${
                           index === selectedClientIndex ? "bg-blue-100" : ""
                         }`}
                         onClick={() => handleClientSelect(client)}
@@ -816,7 +828,7 @@ function ViewBill() {
                     {filteredFieldOfficers.map((officer, index) => (
                       <div
                         key={officer._id}
-                        className={`p-2 hover:bg-gray-100 cursor-pointer ${
+                        className={`p-2 hover:bg-gray-100 cursor-pointer field-officer-dropdown-item ${
                           index === selectedFieldOfficerIndex ? "bg-blue-100" : ""
                         }`}
                         onClick={() => handleFieldOfficerSelect(officer)}
@@ -865,7 +877,7 @@ function ViewBill() {
                     {filteredSalesmen.map((salesman, index) => (
                       <div
                         key={salesman._id}
-                        className={`p-2 hover:bg-gray-100 cursor-pointer ${
+                        className={`p-2 hover:bg-gray-100 cursor-pointer salesman-dropdown-item ${
                           index === selectedSalesmanIndex ? "bg-blue-100" : ""
                         }`}
                         onClick={() => handleSalesmanSelect(salesman)}
@@ -936,7 +948,7 @@ function ViewBill() {
                         <input
                           type="text"
                           placeholder="Search product..."
-                          className="w-full p-1 border border-gray-300 rounded-md"
+                          className="w-full p-2 text-base border border-gray-300 rounded-md"
                           value={productSearchTerms[index] || ""}
                           onChange={(e) => handleProductSearch(index, e.target.value)}
                           onKeyDown={(e) => handleProductKeyDown(e, index)}
@@ -944,7 +956,7 @@ function ViewBill() {
                         />
                         {productSearchTerms[index] && getFilteredProducts(index).length > 0 && (
                           <div
-                            className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto"
+                            className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-80 overflow-auto"
                             ref={(el) => (productDropdownRefs.current[index] = el)}
                           >
                             {getFilteredProducts(index).map((product, productIndex) => (
@@ -956,7 +968,14 @@ function ViewBill() {
                                 onClick={() => handleProductSelect(index, product)}
                               >
                                 <div className="font-medium">{product.productName}</div>
-                                <div className="text-sm text-gray-500">
+                                {(product.companyName || product.containerSize) && (
+                                  <div className="text-xs text-gray-600 mt-0.5">
+                                    {product.companyName && <span>{product.companyName}</span>}
+                                    {product.companyName && product.containerSize && <span> - </span>}
+                                    {product.containerSize && <span>{product.containerSize}</span>}
+                                  </div>
+                                )}
+                                <div className="text-sm text-gray-500 mt-0.5">
                                   PKR {product.productPrice.toFixed(2)}
                                   {product.hasInfiniteQuantity === false
                                     ? ` - ${product.quantity} in stock`
