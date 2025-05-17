@@ -38,7 +38,7 @@ function createWindow() {
 
   // Load the index.html file
   mainWindow.loadFile("index.html")
-  // mainWindow.webContents.openDevTools()
+
   // Open DevTools only in development
   if (process.env.NODE_ENV === "development") {
     mainWindow.webContents.openDevTools()
@@ -493,6 +493,7 @@ ipcMain.handle("add-bill", async (event, bill) => {
                 productId: item.productId,
                 rate: item.rate,
                 discount: item.discount,
+                extraDiscount: item.extraDiscount || 0,
                 lastUsed: new Date(),
               }
 
@@ -568,6 +569,7 @@ ipcMain.handle("update-bill", async (event, bill) => {
                 productId: item.productId,
                 rate: item.rate,
                 discount: item.discount,
+                extraDiscount: item.extraDiscount || 0,
                 lastUsed: new Date(),
               }
 

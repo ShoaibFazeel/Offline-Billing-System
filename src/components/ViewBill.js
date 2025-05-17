@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useParams, useNavigate, Link } from "react-router-dom"
+import { useState, useEffect, useRef } from "react"
+import { useParams, useNavigate } from "react-router-dom"
 import toast from "react-hot-toast"
 
 // Add this import at the top of the file
@@ -28,6 +28,16 @@ function ViewBill() {
   const [salesmanSearchTerm, setSalesmanSearchTerm] = useState("")
   const [productSearchTerms, setProductSearchTerms] = useState({})
   const [originalItems, setOriginalItems] = useState([])
+  const [showDiscountAsAmount, setShowDiscountAsAmount] = useState(false)
+
+  // Add refs for search inputs
+  const clientSearchRef = useRef(null)
+  const fieldOfficerSearchRef = useRef(null)
+  const salesmanSearchRef = useRef(null)
+  const productSearchRefs = useRef({})
+  // First, add refs for the product dropdowns
+  // Add these after the existing refs:
+  const productDropdownRefs = useRef({})
 
   useEffect(() => {
     fetchBill()
@@ -142,7 +152,12 @@ function ViewBill() {
       rate: product.productPrice,
       availableQuantity: product.hasInfiniteQuantity !== false ? Number.POSITIVE_INFINITY : product.quantity,
       hasInfiniteQuantity: product.hasInfiniteQuantity !== false,
-      total: calculateItemTotal(updatedItems[index].quantity, product.productPrice, updatedItems[index].discount),
+      total: calculateItemTotal(
+        updatedItems[index].quantity,
+        product.productPrice,
+        updatedItems[index].discount,
+        updatedItems[index].extraDiscount,
+      ),
     }
 
     const totalAmount = calculateBillTotal(updatedItems)
@@ -202,7 +217,7 @@ function ViewBill() {
     const updatedItems = [...editedBill.items]
     const item = updatedItems[index]
 
-    if (field === "quantity" || field === "rate" || field === "discount") {
+    if (field === "quantity" || field === "rate" || field === "discount" || field === "extraDiscount") {
       value = Number.parseFloat(value) || 0
     }
 
@@ -231,11 +246,12 @@ function ViewBill() {
     }
 
     // Recalculate total for this item
-    if (field === "quantity" || field === "rate" || field === "discount") {
+    if (field === "quantity" || field === "rate" || field === "discount" || field === "extraDiscount") {
       updatedItems[index].total = calculateItemTotal(
         updatedItems[index].quantity,
         updatedItems[index].rate,
         updatedItems[index].discount,
+        updatedItems[index].extraDiscount,
       )
     }
 
@@ -248,8 +264,12 @@ function ViewBill() {
     })
   }
 
-  const calculateItemTotal = (quantity, rate, discount) => {
-    return quantity * rate * (1 - discount / 100)
+  // Update the calculateItemTotal function to handle extraDiscount as percentage
+  const calculateItemTotal = (quantity, rate, discount, extraDiscount = 0) => {
+    // First apply percentage discount
+    const afterDiscount = quantity * rate * (1 - discount / 100)
+    // Then apply extra discount (as percentage)
+    return afterDiscount * (1 - extraDiscount / 100)
   }
 
   const calculateBillTotal = (items) => {
@@ -271,6 +291,7 @@ function ViewBill() {
         quantity: 1,
         rate: 0,
         discount: 0,
+        extraDiscount: 0,
         total: 0,
         isBonus: false,
       },
@@ -430,6 +451,195 @@ function ViewBill() {
     }
   }
 
+  // Add keyboard navigation for search dropdowns
+  const [selectedClientIndex, setSelectedClientIndex] = useState(-1)
+  const [selectedFieldOfficerIndex, setSelectedFieldOfficerIndex] = useState(-1)
+  const [selectedSalesmanIndex, setSelectedSalesmanIndex] = useState(-1)
+  const [selectedProductIndex, setSelectedProductIndex] = useState({})
+
+  const handleClientKeyDown = (e) => {
+    if (!clientSearchTerm || filteredClients.length === 0) return
+
+    // Arrow down
+    if (e.key === "ArrowDown") {
+      e.preventDefault()
+      setSelectedClientIndex((prev) => (prev < filteredClients.length - 1 ? prev + 1 : prev))
+    }
+    // Arrow up
+    else if (e.key === "ArrowUp") {
+      e.preventDefault()
+      setSelectedClientIndex((prev) => (prev > 0 ? prev - 1 : 0))
+    }
+    // Enter
+    else if (e.key === "Enter" && selectedClientIndex >= 0) {
+      e.preventDefault()
+      handleClientSelect(filteredClients[selectedClientIndex])
+    }
+  }
+
+  const handleFieldOfficerKeyDown = (e) => {
+    if (!fieldOfficerSearchTerm || filteredFieldOfficers.length === 0) return
+
+    // Arrow down
+    if (e.key === "ArrowDown") {
+      e.preventDefault()
+      setSelectedFieldOfficerIndex((prev) => (prev < filteredFieldOfficers.length - 1 ? prev + 1 : prev))
+    }
+    // Arrow up
+    else if (e.key === "ArrowUp") {
+      e.preventDefault()
+      setSelectedFieldOfficerIndex((prev) => (prev > 0 ? prev - 1 : 0))
+    }
+    // Enter
+    else if (e.key === "Enter" && selectedFieldOfficerIndex >= 0) {
+      e.preventDefault()
+      handleFieldOfficerSelect(filteredFieldOfficers[selectedFieldOfficerIndex])
+    }
+  }
+
+  const handleSalesmanKeyDown = (e) => {
+    if (!salesmanSearchTerm || filteredSalesmen.length === 0) return
+
+    // Arrow down
+    if (e.key === "ArrowDown") {
+      e.preventDefault()
+      setSelectedSalesmanIndex((prev) => (prev < filteredSalesmen.length - 1 ? prev + 1 : prev))
+    }
+    // Arrow up
+    else if (e.key === "ArrowUp") {
+      e.preventDefault()
+      setSelectedSalesmanIndex((prev) => (prev > 0 ? prev - 1 : 0))
+    }
+    // Enter
+    else if (e.key === "Enter" && selectedSalesmanIndex >= 0) {
+      e.preventDefault()
+      handleSalesmanSelect(filteredSalesmen[selectedSalesmanIndex])
+    }
+  }
+
+  // Replace the handleProductKeyDown function with this improved version:
+  const handleProductKeyDown = (e, index) => {
+    const filtered = getFilteredProducts(index)
+    if (!productSearchTerms[index] || filtered.length === 0) return
+
+    // Arrow down
+    if (e.key === "ArrowDown") {
+      e.preventDefault()
+      setSelectedProductIndex((prev) => {
+        const currentIndex = prev[index] !== undefined ? prev[index] : -1
+        return {
+          ...prev,
+          [index]: Math.min(currentIndex + 1, filtered.length - 1),
+        }
+      })
+    }
+    // Arrow up
+    else if (e.key === "ArrowUp") {
+      e.preventDefault()
+      setSelectedProductIndex((prev) => {
+        const currentIndex = prev[index] !== undefined ? prev[index] : 0
+        return {
+          ...prev,
+          [index]: Math.max(currentIndex - 1, 0),
+        }
+      })
+    }
+    // Enter
+    else if (e.key === "Enter") {
+      e.preventDefault()
+      const currentIndex = selectedProductIndex[index]
+      if (currentIndex !== undefined && currentIndex >= 0 && currentIndex < filtered.length) {
+        handleProductSelect(index, filtered[currentIndex])
+      } else if (filtered.length > 0) {
+        // If no item is selected but there are items in the dropdown, select the first one
+        handleProductSelect(index, filtered[0])
+      }
+    }
+    // Escape
+    else if (e.key === "Escape") {
+      e.preventDefault()
+      setProductSearchTerms((prev) => ({
+        ...prev,
+        [index]: "",
+      }))
+    }
+  }
+
+  // Add this useEffect after the existing useEffects:
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      // Handle client dropdown
+      if (
+        clientSearchRef.current &&
+        !clientSearchRef.current.contains(event.target) &&
+        !event.target.closest(".client-dropdown-item")
+      ) {
+        setClientSearchTerm("")
+      }
+
+      // Handle field officer dropdown
+      if (
+        fieldOfficerSearchRef.current &&
+        !fieldOfficerSearchRef.current.contains(event.target) &&
+        !event.target.closest(".field-officer-dropdown-item")
+      ) {
+        setFieldOfficerSearchTerm("")
+      }
+
+      // Handle salesman dropdown
+      if (
+        salesmanSearchRef.current &&
+        !salesmanSearchRef.current.contains(event.target) &&
+        !event.target.closest(".salesman-dropdown-item")
+      ) {
+        setSalesmanSearchTerm("")
+      }
+
+      // Handle product dropdowns
+      Object.keys(productSearchRefs.current).forEach((index) => {
+        const searchRef = productSearchRefs.current[index]
+        const dropdownRef = productDropdownRefs.current[index]
+
+        if (searchRef && !searchRef.contains(event.target) && (!dropdownRef || !dropdownRef.contains(event.target))) {
+          setProductSearchTerms((prev) => ({
+            ...prev,
+            [index]: "",
+          }))
+        }
+      })
+    }
+
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [])
+
+  // Add this useEffect to initialize product indices when search terms change
+  // Add this after the other useEffect hooks:
+
+  // Add this useEffect to initialize the selected product index when search terms change
+  useEffect(() => {
+    // When a product search term is added, initialize its selected index to 0 (first item)
+    Object.keys(productSearchTerms).forEach((index) => {
+      if (productSearchTerms[index] && getFilteredProducts(Number(index)).length > 0) {
+        if (selectedProductIndex[index] === undefined) {
+          setSelectedProductIndex((prev) => ({
+            ...prev,
+            [index]: 0,
+          }))
+        }
+      }
+    })
+  }, [productSearchTerms])
+
+  // Auto-focus when editing starts
+  useEffect(() => {
+    if (isEditing && clientSearchRef.current) {
+      clientSearchRef.current.focus()
+    }
+  }, [isEditing])
+
   if (isLoading) {
     return <div className="text-center py-10">Loading...</div>
   }
@@ -438,24 +648,69 @@ function ViewBill() {
     return <div className="text-center py-10">Bill not found</div>
   }
 
+  // Helper function to calculate extra discount amount
+  const calculateExtraDiscountAmount = (item) => {
+    // First calculate the amount after regular discount
+    const afterRegularDiscount = item.quantity * item.rate * (1 - item.discount / 100)
+    // Then calculate the extra discount amount
+    return afterRegularDiscount * (item.extraDiscount / 100)
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center">
-          <Link to="/bills" className="mr-4">
-            <button className="bg-gray-200 hover:bg-gray-300 text-gray-800 p-2 rounded-md">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </button>
-          </Link>
+          <button
+            onClick={(e) => {
+              e.preventDefault()
+              // Get the source page from localStorage, default to bills if not set
+              const sourcePage = localStorage.getItem("billSourcePage") || "bills"
+              // Clear the source page from localStorage
+              localStorage.removeItem("billSourcePage")
+
+              // Navigate to the appropriate page
+              if (sourcePage === "dashboard") {
+                window.location.hash = "#/"
+              } else if (sourcePage === "reports") {
+                window.location.hash = "#/reports"
+              } else {
+                // Default to bills
+                window.location.hash = "#/bills"
+              }
+            }}
+            className="bg-gray-200 hover:bg-gray-300 text-gray-800 p-2 rounded-md mr-4"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path
+                fillRule="evenodd"
+                d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
           <h1 className="text-3xl font-bold">Bill #{bill._id.substring(0, 8)}</h1>
         </div>
-        <div className="flex space-x-2">
+        <div className="flex space-x-2 items-center">
+          {!isEditing && (
+            <div className="flex items-center mr-4">
+              <span className="mr-2">Show discount as:</span>
+              <button
+                onClick={() => setShowDiscountAsAmount(!showDiscountAsAmount)}
+                className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-1 rounded-md"
+              >
+                {showDiscountAsAmount ? "Amount" : "Percentage"}
+              </button>
+            </div>
+          )}
+          {/* <div className="flex items-center mr-4">
+            <span className="mr-2">Show discount as:</span>
+            <button
+              onClick={() => setShowDiscountAsAmount(!showDiscountAsAmount)}
+              className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-1 rounded-md"
+            >
+              {showDiscountAsAmount ? "Amount" : "Percentage"}
+            </button>
+          </div> */}
           {isEditing ? (
             <>
               <button onClick={saveBill} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md">
@@ -502,13 +757,17 @@ function ViewBill() {
                   className="w-full p-2 border border-gray-300 rounded-md"
                   value={clientSearchTerm}
                   onChange={handleClientSearch}
+                  onKeyDown={handleClientKeyDown}
+                  ref={clientSearchRef}
                 />
                 {clientSearchTerm && filteredClients.length > 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-                    {filteredClients.map((client) => (
+                    {filteredClients.map((client, index) => (
                       <div
                         key={client._id}
-                        className="p-2 hover:bg-gray-100 cursor-pointer"
+                        className={`p-2 hover:bg-gray-100 cursor-pointer client-dropdown-item ${
+                          index === selectedClientIndex ? "bg-blue-100" : ""
+                        }`}
                         onClick={() => handleClientSelect(client)}
                       >
                         <div className="font-medium">{client.clientName}</div>
@@ -578,13 +837,17 @@ function ViewBill() {
                   className="w-full p-2 border border-gray-300 rounded-md"
                   value={fieldOfficerSearchTerm}
                   onChange={handleFieldOfficerSearch}
+                  onKeyDown={handleFieldOfficerKeyDown}
+                  ref={fieldOfficerSearchRef}
                 />
                 {fieldOfficerSearchTerm && filteredFieldOfficers.length > 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-                    {filteredFieldOfficers.map((officer) => (
+                    {filteredFieldOfficers.map((officer, index) => (
                       <div
                         key={officer._id}
-                        className="p-2 hover:bg-gray-100 cursor-pointer"
+                        className={`p-2 hover:bg-gray-100 cursor-pointer field-officer-dropdown-item ${
+                          index === selectedFieldOfficerIndex ? "bg-blue-100" : ""
+                        }`}
                         onClick={() => handleFieldOfficerSelect(officer)}
                       >
                         <div className="font-medium">{officer.name}</div>
@@ -623,13 +886,17 @@ function ViewBill() {
                   className="w-full p-2 border border-gray-300 rounded-md"
                   value={salesmanSearchTerm}
                   onChange={handleSalesmanSearch}
+                  onKeyDown={handleSalesmanKeyDown}
+                  ref={salesmanSearchRef}
                 />
                 {salesmanSearchTerm && filteredSalesmen.length > 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-                    {filteredSalesmen.map((salesman) => (
+                    {filteredSalesmen.map((salesman, index) => (
                       <div
                         key={salesman._id}
-                        className="p-2 hover:bg-gray-100 cursor-pointer"
+                        className={`p-2 hover:bg-gray-100 cursor-pointer salesman-dropdown-item ${
+                          index === selectedSalesmanIndex ? "bg-blue-100" : ""
+                        }`}
                         onClick={() => handleSalesmanSelect(salesman)}
                       >
                         <div className="font-medium">{salesman.name}</div>
@@ -674,7 +941,10 @@ function ViewBill() {
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rate</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Discount
+                  {showDiscountAsAmount ? "Discount Amt" : "Discount %"}
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  {showDiscountAsAmount ? "Extra Disc Amt" : "Extra Disc %"}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Total
@@ -695,20 +965,34 @@ function ViewBill() {
                         <input
                           type="text"
                           placeholder="Search product..."
-                          className="w-full p-1 border border-gray-300 rounded-md"
+                          className="w-full p-2 text-base border border-gray-300 rounded-md"
                           value={productSearchTerms[index] || ""}
                           onChange={(e) => handleProductSearch(index, e.target.value)}
+                          onKeyDown={(e) => handleProductKeyDown(e, index)}
+                          ref={(el) => (productSearchRefs.current[index] = el)}
                         />
                         {productSearchTerms[index] && getFilteredProducts(index).length > 0 && (
-                          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-                            {getFilteredProducts(index).map((product) => (
+                          <div
+                            className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-80 overflow-auto"
+                            ref={(el) => (productDropdownRefs.current[index] = el)}
+                          >
+                            {getFilteredProducts(index).map((product, productIndex) => (
                               <div
                                 key={product._id}
-                                className="p-2 hover:bg-gray-100 cursor-pointer"
+                                className={`p-2 hover:bg-gray-100 cursor-pointer ${
+                                  selectedProductIndex[index] === productIndex ? "bg-blue-100" : ""
+                                }`}
                                 onClick={() => handleProductSelect(index, product)}
                               >
                                 <div className="font-medium">{product.productName}</div>
-                                <div className="text-sm text-gray-500">
+                                {(product.companyName || product.containerSize) && (
+                                  <div className="text-xs text-gray-600 mt-0.5">
+                                    {product.companyName && <span>{product.companyName}</span>}
+                                    {product.companyName && product.containerSize && <span> - </span>}
+                                    {product.containerSize && <span>{product.containerSize}</span>}
+                                  </div>
+                                )}
+                                <div className="text-sm text-gray-500 mt-0.5">
                                   PKR {product.productPrice.toFixed(2)}
                                   {product.hasInfiniteQuantity === false
                                     ? ` - ${product.quantity} in stock`
@@ -786,8 +1070,26 @@ function ViewBill() {
                         min="0"
                         max="100"
                       />
+                    ) : showDiscountAsAmount ? (
+                      `PKR ${((item.rate * item.quantity * item.discount) / 100).toFixed(2)}`
                     ) : (
                       `${item.discount}%`
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {isEditing ? (
+                      <input
+                        type="number"
+                        value={item.extraDiscount || 0}
+                        onChange={(e) => handleItemChange(index, "extraDiscount", e.target.value)}
+                        className="w-full p-1 border border-gray-300 rounded-md"
+                        min="0"
+                        max="100"
+                      />
+                    ) : showDiscountAsAmount ? (
+                      `PKR ${calculateExtraDiscountAmount(item).toFixed(2)}`
+                    ) : (
+                      `${item.extraDiscount || 0}%`
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
