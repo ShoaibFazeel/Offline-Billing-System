@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { useParams, useNavigate, Link } from "react-router-dom"
+import { useParams, useNavigate } from "react-router-dom"
 import toast from "react-hot-toast"
 
 // Add this import at the top of the file
@@ -660,17 +660,34 @@ function ViewBill() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center">
-          <Link to="/bills" className="mr-4">
-            <button className="bg-gray-200 hover:bg-gray-300 text-gray-800 p-2 rounded-md">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </button>
-          </Link>
+          <button
+            onClick={(e) => {
+              e.preventDefault()
+              // Get the source page from localStorage, default to bills if not set
+              const sourcePage = localStorage.getItem("billSourcePage") || "bills"
+              // Clear the source page from localStorage
+              localStorage.removeItem("billSourcePage")
+
+              // Navigate to the appropriate page
+              if (sourcePage === "dashboard") {
+                window.location.hash = "#/"
+              } else if (sourcePage === "reports") {
+                window.location.hash = "#/reports"
+              } else {
+                // Default to bills
+                window.location.hash = "#/bills"
+              }
+            }}
+            className="bg-gray-200 hover:bg-gray-300 text-gray-800 p-2 rounded-md mr-4"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path
+                fillRule="evenodd"
+                d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
           <h1 className="text-3xl font-bold">Bill #{bill._id.substring(0, 8)}</h1>
         </div>
         <div className="flex space-x-2 items-center">

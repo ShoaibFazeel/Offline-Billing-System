@@ -125,7 +125,13 @@ function BillHistory() {
                     PKR {bill.totalAmount.toFixed(2)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <Link to={`/bill/${bill._id}`} className="text-blue-600 hover:text-blue-900 mr-4">
+                    <Link
+                      to={`/bill/${bill._id}`}
+                      className="text-blue-600 hover:text-blue-900 mr-4"
+                      onClick={() => {
+                        localStorage.setItem("billSourcePage", "bills")
+                      }}
+                    >
                       View
                     </Link>
                   </td>
