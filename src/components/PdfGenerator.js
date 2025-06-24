@@ -27,44 +27,137 @@ class PdfGenerator {
 
   async generateInvoicePdf(bill, client, companyInfo, fieldOfficer, salesman) {
     try {
-      // Create a new PDF document
       const pdfDoc = await PDFDocument.create()
+      const page = pdfDoc.addPage([595.28, 841.89]) // A4 size
+      const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
+      const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+      let y = 800
+      const left = 40
+      const right = 555
+      const lineHeight = 20 // Increased spacing
+      const tableStartY = 570
+      const pageBottom = 60 // Margin from bottom for footer
 
-      // Add a page to the document
-      const page = pdfDoc.addPage([this.pageWidth, this.pageHeight])
+      // --- Header ---
+      // Center the company name at the top
+      const pageWidth = 595.28;
+      const companyName = companyInfo.companyName || "Company Name";
+      const companyAddress = companyInfo.companyAddress || "Address";
+      const companyOwner = companyInfo.ownerName || "Owner";
+      const companyOwnerPhone = companyInfo.ownerPhone || "Phone";
 
-      // Get fonts
-      const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica)
-      const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
-      const helveticaOblique = await pdfDoc.embedFont(StandardFonts.HelveticaOblique)
+      const companyNameWidth = bold.widthOfTextAtSize(companyName, 16);
+      const companyAddressWidth = font.widthOfTextAtSize(companyAddress, 10);
+      const companyOwnerWidth = font.widthOfTextAtSize(companyOwner, 10);
+      const companyOwnerPhoneWidth = font.widthOfTextAtSize(companyOwnerPhone, 10);
 
-      // Current Y position (start from top)
-      let yPos = this.pageHeight - this.margin
+      page.drawText(companyName, {
+        x: (pageWidth - companyNameWidth) / 2,
+        y,
+        size: 16,
+        font: bold,
+        color: rgb(0, 0, 0),
+      })
+      page.drawText(companyInfo.companyAddress || "Address", {
+        x: (pageWidth - companyAddressWidth) / 2,
+        y: y - 22,
+        size: 10,
+        font,
+        color: rgb(0, 0, 0),
+      })
+      page.drawText(
+        `Owner: ${companyInfo.ownerName || "-"} ${companyInfo.ownerPhone || "-"}`,
+        { x: (pageWidth - (companyOwnerWidth+companyOwnerPhoneWidth)) / 2, y: y - 40, size: 10, font, color: rgb(0, 0, 0) }
+      )
+      // Draw a line
+      page.drawLine({ start: { x: left, y: y - 68 }, end: { x: right, y: y - 68 }, thickness: 1, color: rgb(0,0,0) })
+      y -= 88
 
-      // Draw company header
-      yPos = this.drawCompanyHeader(page, helveticaBold, helveticaFont, companyInfo, yPos)
+      // --- Invoice Info Row ---
+      page.drawText(`Invoice No: ${bill.billId ? bill.billId : bill._id}` , { x: left, y, size: 12, font: bold })
+      page.drawText(`Date: ${new Date(bill.billDate).toLocaleDateString()}` , { x: right - 120, y, size: 12, font })
+      y -= lineHeight
+      page.drawText(`Name: ${client.clientName || "N/A"}` , { x: left, y, size: 12, font })
+      const now = new Date();
+      page.drawText(`Printing Date: ${now.toLocaleDateString()}` , { x: right - 180, y, size: 11, font })
+      y -= 14;
+      page.drawText(`Printing Time: ${now.toLocaleTimeString()}` , { x: right - 180, y, size: 11, font })
+      y -= lineHeight
+      page.drawText(`Address: ${client.clientAddress || "N/A"}` , { x: left, y, size: 12, font })
+      y -= lineHeight
+      page.drawText(`F. Officer: ${fieldOfficer.name || "N/A"} ${fieldOfficer.phoneNumber || ""}` , { x: left, y, size: 12, font })
+      page.drawText(`Salesman: ${salesman.name || "N/A"} ${salesman.phoneNumber || ""}` , { x: right - 180, y, size: 12, font })
+      y -= lineHeight + 8
 
-      // Draw invoice information
-      yPos = this.drawInvoiceInfo(page, helveticaBold, helveticaFont, bill, yPos)
+      // --- Table Header ---
+      const col = [left, left+22, left+220, left+260, left+300, left+350, left+400, left+470]
+      page.drawText("S#", { x: col[0], y, size: 11, font: bold })
+      page.drawText("Description", { x: col[1], y, size: 11, font: bold })
+      page.drawText("Qty", { x: col[2], y, size: 11, font: bold })
+      page.drawText("Bns", { x: col[3], y, size: 11, font: bold })
+      page.drawText("Rate", { x: col[4], y, size: 11, font: bold })
+      page.drawText("Disc Net", { x: col[5], y, size: 11, font: bold })
+      page.drawText("Total", { x: col[6], y, size: 11, font: bold })
+      y -= 16
+      page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 0.5, color: rgb(0,0,0) })
+      y -= 16 // More space before product list
 
-      // Draw client and representatives information
-      yPos = this.drawClientInfo(page, helveticaBold, helveticaFont, client, fieldOfficer, salesman, yPos)
+      // --- Table Rows ---
+      bill.items.forEach((item, idx) => {
+        if (!item.productName) return
+        page.drawText(String(idx + 1), { x: col[0], y, size: 11, font })
+        page.drawText(item.productName, { x: col[1], y, size: 11, font })
+        page.drawText(String(item.quantity), { x: col[2], y, size: 11, font })
+        page.drawText(item.isBonus ? String(item.quantity) : "", { x: col[3], y, size: 11, font })
+        page.drawText(item.rate.toFixed(2), { x: col[4], y, size: 11, font })
+        const discNet = ((item.rate * item.quantity * (item.discount || 0)) / 100).toFixed(2)
+        page.drawText(discNet, { x: col[5], y, size: 11, font })
+        page.drawText(item.total.toFixed(2), { x: col[6], y, size: 11, font })
+        y -= 18 // More space between rows
+      })
+      y -= 12
+      page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 0.5, color: rgb(0,0,0) })
+      y -= 20
 
-      // Draw items table
-      yPos = this.drawItemsTable(page, helveticaBold, helveticaFont, bill.items, yPos)
+      // --- Totals Section ---
+      const grossAmount = bill.items.reduce((sum, item) => !item.isBonus ? sum + item.quantity * item.rate : sum, 0)
+      const totalDiscount = bill.items.reduce((sum, item) => !item.isBonus ? sum + ((item.rate * item.quantity * (item.discount || 0)) / 100) : sum, 0)
+      const partyStatus = client.isFiler ? "FILER" : "NON FILER"
+      const ntn = client.ntnNumber || ""
+      page.drawText(`Party Status: ${partyStatus}`, { x: left, y, size: 11, font: bold })
+      page.drawText(`NTN No: ${ntn}`, { x: left + 180, y, size: 11, font })
+      page.drawText(`Gross Amount:`, { x: left + 300, y, size: 11, font })
+      page.drawText(grossAmount.toFixed(2), { x: left + 400, y, size: 11, font })
+      y -= 18
+      page.drawText(`Advance Tax:`, { x: left + 300, y, size: 11, font })
+      page.drawText("0.00", { x: left + 400, y, size: 11, font })
+      y -= 18
+      page.drawText(`Discount:`, { x: left + 300, y, size: 11, font })
+      page.drawText(totalDiscount.toFixed(2), { x: left + 400, y, size: 11, font })
+      y -= 18
+      page.drawText(`TOTAL AMOUNT:`, { x: left + 300, y, size: 12, font: bold })
+      page.drawText(bill.totalAmount.toFixed(2), { x: left + 430, y, size: 12, font: bold })
+      y -= 30
+      page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 0.5, color: rgb(0,0,0) })
 
-      // Draw totals
-      yPos = this.drawTotals(page, helveticaBold, helveticaFont, bill, yPos)
+      // --- Footer: Always at the bottom ---
+      let footerY = pageBottom
+      // Draw a line just above the footer block
+      page.drawLine({ start: { x: left, y: footerY + 75 }, end: { x: right, y: footerY + 75 }, thickness: 0.5, color: rgb(0,0,0) })
+      page.drawText("Prepared By", { x: left + 40, y: footerY + 60, size: 11, font })
+      page.drawText("Checked By", { x: left + 200, y: footerY + 60, size: 11, font })
+      page.drawText("TOTAL AMOUNT:", { x: left + 350, y: footerY + 60, size: 11, font: bold })
+      page.drawText(bill.totalAmount.toFixed(2), { x: left + 450, y: footerY + 60, size: 11, font: bold })
+      // Warranty/Notes
+      page.drawText("General Warranty: under alternative medicine & health products (enlistment) Rules 2014", { x: left, y: footerY + 44, size: 8, font })
+      page.drawText("We as the authorised distributors/agents and on behalf of the Principals/Manufacturer hereby give warranty that the", { x: left, y: footerY + 34, size: 8, font })
+      page.drawText("supplied alternative medicines & health products mentioned herein do not contravene any provision of the prevailing DRAP Act & rules", { x: left, y: footerY + 24, size: 8, font })
+      page.drawText("Note: (A) For dated (expired) items, Please inform 6 months before actual expiry date.", { x: left, y: footerY + 14, size: 8, font })
+      page.drawText("(B) This warranty does not apply to the ayurvedic, general items, unani, food items mentioned in this cash memo/invoice.", { x: left, y: footerY + 4, size: 8, font })
+      page.drawText("Designed By: Shoaib Fazeel B - 24/7 Hours Help Line (0347-8405935, 0307-6341160)", { x: left, y: footerY - 10, size: 8, font })
+      page.drawText("Page # 1", { x: right - 40, y: footerY - 10, size: 8, font })
 
-      // Draw warranty and notes
-      yPos = this.drawWarrantyAndNotes(page, helveticaBold, helveticaFont, yPos)
-
-      // Draw footer
-      this.drawFooter(page, helveticaFont, helveticaOblique)
-
-      // Save the PDF
-      const pdfBytes = await pdfDoc.save()
-      return pdfBytes
+      return await pdfDoc.save()
     } catch (error) {
       console.error("Error generating PDF:", error)
       throw error

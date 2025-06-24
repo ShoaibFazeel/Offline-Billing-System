@@ -130,7 +130,7 @@ function Reports() {
     // Get client address
     const clientAddress = getClientAddress(bill.clientId) || ""
     const clientName = bill.clientName || getClientName(bill.clientId) || ""
-    const billId = bill._id || ""
+    const billId = bill.billId ? String(bill.billId) : (bill._id || "")
 
     // Filter by address
     const matchesAddress = !addressFilter || clientAddress.toLowerCase().includes(addressFilter.toLowerCase())
@@ -247,320 +247,144 @@ function Reports() {
     return filteredBills.reduce((total, bill) => total + (bill.totalAmount || 0), 0)
   }
 
-  // Generate a report PDF for the filtered data
+  // Helper to generate PDF bytes for the report
+  const generateReportPdfBytes = async () => {
+    // (Same logic as generateReportPdf, but return pdfBytes instead of downloading)
+    const companyInfo = await window.api.getCompanyInfo()
+    const { PDFDocument, rgb, StandardFonts } = await import("pdf-lib")
+    const pdfDoc = await PDFDocument.create()
+    const pageWidth = 595.28
+    const pageHeight = 841.89
+    const left = 40
+    const right = 555
+    let y = 800
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
+    const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+    const margin = 40
+    const col = [left, left+60, left+260, left+400, left+500]
+    // --- Header ---
+    const companyName = companyInfo.companyName || "Company Name"
+    const companyAddress = companyInfo.companyAddress || "Address"
+    const companyNameWidth = bold.widthOfTextAtSize(companyName, 16)
+    const companyAddressWidth = font.widthOfTextAtSize(companyAddress, 10)
+    // Centered company name
+    pdfDoc.addPage([pageWidth, pageHeight])
+    let page = pdfDoc.getPages()[0]
+    page.drawText(companyName, {
+      x: (pageWidth - companyNameWidth) / 2,
+      y,
+      size: 16,
+      font: bold,
+      color: rgb(0, 0, 0),
+    })
+    // Centered address
+    page.drawText(companyAddress, {
+      x: (pageWidth - companyAddressWidth) / 2,
+      y: y - 20,
+      size: 10,
+      font,
+      color: rgb(0, 0, 0),
+    })
+    // Report Date box (top right)
+    const reportDateLabel = "Report Date"
+    const reportDate = new Date().toLocaleDateString()
+    page.drawRectangle({ x: right - 40, y: y - 5, width: 90, height: 32, borderColor: rgb(0,0,0), borderWidth: 1, color: rgb(1,1,1) })
+    page.drawText(reportDateLabel, { x: right - 35, y: y + 15, size: 10, font: bold, color: rgb(0,0,0) })
+    page.drawText(reportDate, { x: right - 35, y: y, size: 10, font, color: rgb(0,0,0) })
+    y -= 50
+    // Horizontal line
+    page.drawLine({ start: { x: left, y }, end: { x: right + 50, y }, thickness: 1, color: rgb(0,0,0) })
+    y -= 20
+    // --- Report Title ---
+    const reportTitle = "Daily Sale Report"
+    const reportTitleWidth = bold.widthOfTextAtSize(reportTitle, 14)
+    page.drawText(reportTitle, {
+      x: (pageWidth - reportTitleWidth) / 2,
+      y,
+      size: 14,
+      font: bold,
+      color: rgb(0, 0, 0),
+    })
+    y -= 30
+    // --- Grouped by Address (City/Area) ---
+    const groups = groupedBills()
+    let grandTotal = 0
+    for (const group of groups) {
+      // City/Area header
+      page.drawText(`City / Area: ${group.groupName}`, { x: left, y, size: 12, font: bold })
+      y -= 18
+      // Table header
+      page.drawText("Invoice No.", { x: col[0], y, size: 11, font: bold })
+      page.drawText("Party Name", { x: col[1], y, size: 11, font: bold })
+      page.drawText("Address", { x: col[2], y, size: 11, font: bold })
+      page.drawText("Amount", { x: col[3], y, size: 11, font: bold })
+      y -= 14
+      page.drawLine({ start: { x: left, y }, end: { x: right + 50, y }, thickness: 0.5, color: rgb(0,0,0) })
+      y -= 8
+      let areaTotal = 0
+      for (const bill of group.bills) {
+        page.drawText(String(bill.billId ? bill.billId : bill._id), { x: col[0], y, size: 10, font })
+        page.drawText(bill.clientName || getClientName(bill.clientId), { x: col[1], y, size: 10, font })
+        page.drawText(bill.clientAddress || getClientAddress(bill.clientId), { x: col[2], y, size: 10, font })
+        page.drawText(bill.totalAmount ? bill.totalAmount.toFixed(2) : "0.00", { x: col[3], y, size: 10, font })
+        areaTotal += bill.totalAmount || 0
+        y -= 14
+      }
+      // City/Area Total
+      y -= 2
+      page.drawText(`City / Area Total:`, { x: col[2], y, size: 11, font: bold })
+      page.drawText(areaTotal.toFixed(2), { x: col[3], y, size: 11, font: bold })
+      grandTotal += areaTotal
+      y -= 18
+      // Horizontal line after group
+      page.drawLine({ start: { x: left, y }, end: { x: right + 50, y }, thickness: 0.5, color: rgb(0,0,0) })
+      y -= 18
+      // Page break if needed
+      if (y < 100) {
+        page = pdfDoc.addPage([pageWidth, pageHeight])
+        y = 800
+      }
+    }
+    // --- Grand Total at the end ---
+    y -= 10
+    page.drawText("Total Amount:", { x: col[2], y, size: 12, font: bold })
+    page.drawText(grandTotal.toFixed(2), { x: col[3], y, size: 12, font: bold })
+    return await pdfDoc.save()
+  }
+
+  // Download PDF
   const generateReportPdf = async () => {
     try {
-      toast.success("Report generation started")
-
-      // Get company info
-      const companyInfo = await window.api.getCompanyInfo()
-
-      // Create a new PDF document with A5 size
-      const { PDFDocument, rgb, StandardFonts } = await import("pdf-lib")
-      const pdfDoc = await PDFDocument.create()
-
-      // A5 size in points (148 × 210 mm)
-      const pageWidth = 420 // 148mm in points
-      const pageHeight = 595 // 210mm in points
-
-      // Add a page with A5 size
-      let page = pdfDoc.addPage([pageWidth, pageHeight])
-
-      // Get fonts
-      const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica)
-      const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
-
-      // Set margins
-      const margin = 30
-
-      // Current Y position (start from top)
-      let yPos = pageHeight - margin
-
-      // Draw company header
-      const centerX = pageWidth / 2
-
-      // Company name
-      page.drawText(companyInfo.companyName.toUpperCase(), {
-        x: centerX - helveticaBold.widthOfTextAtSize(companyInfo.companyName.toUpperCase(), 14) / 2,
-        y: yPos,
-        size: 14,
-        font: helveticaBold,
-        color: rgb(0, 0, 0),
-      })
-
-      yPos -= 20
-
-      // Report title
-      const reportTitle = `${groupBy.charAt(0).toUpperCase() + groupBy.slice(1)} Report`
-      page.drawText(reportTitle, {
-        x: centerX - helveticaBold.widthOfTextAtSize(reportTitle, 12) / 2,
-        y: yPos,
-        size: 12,
-        font: helveticaBold,
-        color: rgb(0, 0, 0),
-      })
-
-      yPos -= 15
-
-      // Date range if specified
-      if (dateFilter.from || dateFilter.to) {
-        const dateRangeText = `Date Range: ${dateFilter.from || "All"} to ${dateFilter.to || "Present"}`
-        page.drawText(dateRangeText, {
-          x: centerX - helveticaFont.widthOfTextAtSize(dateRangeText, 10) / 2,
-          y: yPos,
-          size: 10,
-          font: helveticaFont,
-          color: rgb(0, 0, 0),
-        })
-        yPos -= 15
-      }
-
-      // Address filter if specified
-      if (addressFilter) {
-        const addressFilterText = `Address Filter: ${addressFilter}`
-        page.drawText(addressFilterText, {
-          x: centerX - helveticaFont.widthOfTextAtSize(addressFilterText, 10) / 2,
-          y: yPos,
-          size: 10,
-          font: helveticaFont,
-          color: rgb(0, 0, 0),
-        })
-        yPos -= 15
-      }
-
-      // Draw a line under the header
-      page.drawLine({
-        start: { x: margin, y: yPos },
-        end: { x: pageWidth - margin, y: yPos },
-        thickness: 1,
-        color: rgb(0.5, 0.5, 0.5),
-      })
-
-      yPos -= 20
-
-      // Get grouped data
-      const groups = groupedBills()
-
-      // Draw each group
-      for (const group of groups) {
-        // Check if we need a new page
-        if (yPos < 100) {
-          // Add a new page
-          page = pdfDoc.addPage([pageWidth, pageHeight])
-          yPos = pageHeight - margin
-        }
-
-        // Draw group header
-        page.drawText(group.groupName, {
-          x: margin,
-          y: yPos,
-          size: 12,
-          font: helveticaBold,
-          color: rgb(0, 0, 0),
-        })
-
-        yPos -= 15
-
-        // Draw group total
-        const totalText = `Total: PKR ${group.totalAmount.toFixed(2)}`
-        page.drawText(totalText, {
-          x: pageWidth - margin - helveticaBold.widthOfTextAtSize(totalText, 10),
-          y: yPos,
-          size: 10,
-          font: helveticaBold,
-          color: rgb(0, 0, 0),
-        })
-
-        yPos -= 15
-
-        // Draw table header
-        const colWidths = {
-          id: 60,
-          client: 120,
-          date: 80,
-          amount: 80,
-        }
-
-        const startX = margin
-
-        // Draw header background
-        page.drawRectangle({
-          x: startX,
-          y: yPos - 15,
-          width: pageWidth - 2 * margin,
-          height: 15,
-          color: rgb(0.95, 0.95, 0.95),
-        })
-
-        // Draw header text
-        page.drawText("Bill ID", {
-          x: startX + 5,
-          y: yPos - 10,
-          size: 8,
-          font: helveticaBold,
-          color: rgb(0, 0, 0),
-        })
-
-        page.drawText("Client", {
-          x: startX + colWidths.id + 5,
-          y: yPos - 10,
-          size: 8,
-          font: helveticaBold,
-          color: rgb(0, 0, 0),
-        })
-
-        page.drawText("Date", {
-          x: startX + colWidths.id + colWidths.client + 5,
-          y: yPos - 10,
-          size: 8,
-          font: helveticaBold,
-          color: rgb(0, 0, 0),
-        })
-
-        page.drawText("Amount", {
-          x: startX + colWidths.id + colWidths.client + colWidths.date + 5,
-          y: yPos - 10,
-          size: 8,
-          font: helveticaBold,
-          color: rgb(0, 0, 0),
-        })
-
-        yPos -= 15
-
-        // Draw bills for this group
-        for (const bill of group.bills) {
-          // Check if we need a new page
-          if (yPos < 50) {
-            // Add a new page
-            page = pdfDoc.addPage([pageWidth, pageHeight])
-            yPos = pageHeight - margin
-
-            // Redraw table header on new page
-            page.drawRectangle({
-              x: startX,
-              y: yPos - 15,
-              width: pageWidth - 2 * margin,
-              height: 15,
-              color: rgb(0.95, 0.95, 0.95),
-            })
-
-            page.drawText("Bill ID", {
-              x: startX + 5,
-              y: yPos - 10,
-              size: 8,
-              font: helveticaBold,
-              color: rgb(0, 0, 0),
-            })
-
-            page.drawText("Client", {
-              x: startX + colWidths.id + 5,
-              y: yPos - 10,
-              size: 8,
-              font: helveticaBold,
-              color: rgb(0, 0, 0),
-            })
-
-            page.drawText("Date", {
-              x: startX + colWidths.id + colWidths.client + 5,
-              y: yPos - 10,
-              size: 8,
-              font: helveticaBold,
-              color: rgb(0, 0, 0),
-            })
-
-            page.drawText("Amount", {
-              x: startX + colWidths.id + colWidths.client + colWidths.date + 5,
-              y: yPos - 10,
-              size: 8,
-              font: helveticaBold,
-              color: rgb(0, 0, 0),
-            })
-
-            yPos -= 15
-          }
-
-          // Draw bill row
-          const billId = bill._id ? `#${bill._id.substring(0, 8)}` : "N/A"
-          const clientName = bill.clientName || getClientName(bill.clientId)
-          const billDate = bill.billDate ? new Date(bill.billDate).toLocaleDateString() : "N/A"
-          const amount = `PKR ${bill.totalAmount ? bill.totalAmount.toFixed(2) : "0.00"}`
-
-          page.drawText(billId, {
-            x: startX + 5,
-            y: yPos - 10,
-            size: 8,
-            font: helveticaFont,
-            color: rgb(0, 0, 0),
-          })
-
-          page.drawText(clientName.length > 20 ? clientName.substring(0, 20) + "..." : clientName, {
-            x: startX + colWidths.id + 5,
-            y: yPos - 10,
-            size: 8,
-            font: helveticaFont,
-            color: rgb(0, 0, 0),
-          })
-
-          page.drawText(billDate, {
-            x: startX + colWidths.id + colWidths.client + 5,
-            y: yPos - 10,
-            size: 8,
-            font: helveticaFont,
-            color: rgb(0, 0, 0),
-          })
-
-          page.drawText(amount, {
-            x: startX + colWidths.id + colWidths.client + colWidths.date + 5,
-            y: yPos - 10,
-            size: 8,
-            font: helveticaFont,
-            color: rgb(0, 0, 0),
-          })
-
-          yPos -= 15
-        }
-
-        // Add space after each group
-        yPos -= 10
-
-        // Draw a line after each group
-        page.drawLine({
-          start: { x: margin, y: yPos },
-          end: { x: pageWidth - margin, y: yPos },
-          thickness: 0.5,
-          color: rgb(0.7, 0.7, 0.7),
-        })
-
-        yPos -= 15
-      }
-
-      // Add grand total at the end
-      const grandTotalText = `Grand Total: PKR ${calculateGrandTotal().toFixed(2)}`
-      page.drawText(grandTotalText, {
-        x: pageWidth - margin - helveticaBold.widthOfTextAtSize(grandTotalText, 12),
-        y: yPos,
-        size: 12,
-        font: helveticaBold,
-        color: rgb(0, 0, 0),
-      })
-
-      // Save the PDF
-      const pdfBytes = await pdfDoc.save()
-
-      // Create a blob and download
+      const pdfBytes = await generateReportPdfBytes()
       const blob = new Blob([pdfBytes], { type: "application/pdf" })
       const link = document.createElement("a")
       link.href = URL.createObjectURL(blob)
-      link.download = `${groupBy}_report_${new Date().toISOString().split("T")[0]}.pdf`
+      link.download = `DailySaleReport-${new Date().toISOString().split("T")[0]}.pdf`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
       URL.revokeObjectURL(link.href)
-
       toast.success("Report generated successfully")
     } catch (error) {
       console.error("Error generating report:", error)
       toast.error("Failed to generate report")
+    }
+  }
+
+  // Print PDF
+  const printReportPdf = async () => {
+    try {
+      const pdfBytes = await generateReportPdfBytes()
+      const blob = new Blob([pdfBytes], { type: "application/pdf" })
+      const blobUrl = URL.createObjectURL(blob)
+      const printWindow = window.open(blobUrl)
+      printWindow.onload = () => {
+        printWindow.focus()
+        printWindow.print()
+      }
+    } catch (error) {
+      toast.error("Failed to print report")
+      console.error(error)
     }
   }
 
@@ -666,12 +490,20 @@ function Reports() {
           <button onClick={fetchData} className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md">
             Refresh Data
           </button>
-          <button
-            onClick={generateReportPdf}
-            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md"
-          >
-            Generate Report PDF
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={generateReportPdf}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md"
+            >
+              Generate Report PDF
+            </button>
+            <button
+              onClick={printReportPdf}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
+            >
+              Print Report
+            </button>
+          </div>
         </div>
       </div>
 
@@ -689,10 +521,10 @@ function Reports() {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Bill ID
+                        Invoice No.
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Client
+                        Party Name
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Date
@@ -709,7 +541,7 @@ function Reports() {
                     {group.bills.map((bill) => (
                       <tr key={bill._id}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          #{bill._id ? bill._id.substring(0, 8) : "N/A"}
+                          #{bill.billId ? bill.billId : bill._id}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {bill.clientName || getClientName(bill.clientId)}

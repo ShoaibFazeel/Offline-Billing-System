@@ -403,42 +403,47 @@ function ViewBill() {
     }
   }
 
-  // Replace the existing generatePDF function with this one
+  // Helper function to generate PDF bytes
+  const generatePdfBytes = async () => {
+    // Get client details
+    const client = clients.find((c) => c._id === bill.clientId) || {
+      clientName: bill.clientName,
+      clientAddress: "N/A",
+      clientNumber: "N/A",
+      isFiler: false,
+      ntnNumber: "",
+    }
+
+    // Get field officer details
+    const fieldOfficer = fieldOfficers.find((o) => o._id === bill.fieldOfficerId) || {
+      name: bill.fieldOfficerName || "N/A",
+      phoneNumber: "N/A",
+    }
+
+    // Get salesman details
+    const salesman = salesmen.find((s) => s._id === bill.salesmanId) || {
+      name: bill.salesmanName || "N/A",
+      phoneNumber: "N/A",
+    }
+
+    // Get company info
+    const companyInfo = await window.api.getCompanyInfo()
+
+    // Generate PDF
+    const pdfGenerator = new PdfGenerator()
+    return await pdfGenerator.generateInvoicePdf(bill, client, companyInfo, fieldOfficer, salesman)
+  }
+
+  // Download PDF
   const generatePDF = async () => {
     try {
-      // Get client details
-      const client = clients.find((c) => c._id === bill.clientId) || {
-        clientName: bill.clientName,
-        clientAddress: "N/A",
-        clientNumber: "N/A",
-        isFiler: false,
-        ntnNumber: "",
-      }
-
-      // Get field officer details
-      const fieldOfficer = fieldOfficers.find((o) => o._id === bill.fieldOfficerId) || {
-        name: bill.fieldOfficerName || "N/A",
-        phoneNumber: "N/A",
-      }
-
-      // Get salesman details
-      const salesman = salesmen.find((s) => s._id === bill.salesmanId) || {
-        name: bill.salesmanName || "N/A",
-        phoneNumber: "N/A",
-      }
-
-      // Get company info
-      const companyInfo = await window.api.getCompanyInfo()
-
-      // Generate PDF
-      const pdfGenerator = new PdfGenerator()
-      const pdfBytes = await pdfGenerator.generateInvoicePdf(bill, client, companyInfo, fieldOfficer, salesman)
+      const pdfBytes = await generatePdfBytes()
 
       // Create a blob and download
       const blob = new Blob([pdfBytes], { type: "application/pdf" })
       const link = document.createElement("a")
       link.href = URL.createObjectURL(blob)
-      link.download = `Invoice-${bill._id.substring(0, 8)}.pdf`
+      link.download = `Invoice-${bill.billId ? bill.billId : bill._id.substring(0, 8)}.pdf`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
@@ -448,6 +453,24 @@ function ViewBill() {
     } catch (error) {
       console.error("Error generating PDF:", error)
       toast.error("Failed to generate PDF")
+    }
+  }
+
+  // Print PDF
+  const printPDF = async () => {
+    try {
+      const pdfBytes = await generatePdfBytes()
+      const blob = new Blob([pdfBytes], { type: "application/pdf" })
+      const blobUrl = URL.createObjectURL(blob)
+      const printWindow = window.open(blobUrl)
+      printWindow.onload = () => {
+        printWindow.focus()
+        printWindow.print()
+      }
+      toast.success("Print dialog opened")
+    } catch (error) {
+      console.error("Error printing PDF:", error)
+      toast.error("Failed to print PDF")
     }
   }
 
@@ -688,7 +711,7 @@ function ViewBill() {
               />
             </svg>
           </button>
-          <h1 className="text-3xl font-bold">Bill #{bill._id.substring(0, 8)}</h1>
+          <h1 className="text-3xl font-bold">Bill #{bill.billId ? bill.billId : bill._id}</h1>
         </div>
         <div className="flex space-x-2 items-center">
           {!isEditing && (
@@ -738,7 +761,13 @@ function ViewBill() {
                 onClick={generatePDF}
                 className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md"
               >
-                Generate PDF
+                Download PDF
+              </button>
+              <button
+                onClick={printPDF}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
+              >
+                Print PDF
               </button>
             </>
           )}
@@ -748,7 +777,7 @@ function ViewBill() {
       <div className="bg-white rounded-lg shadow p-6 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <h2 className="text-lg font-semibold mb-2">Client Information</h2>
+            <h2 className="text-lg font-semibold mb-2">Party Information</h2>
             {isEditing ? (
               <div className="relative">
                 <input

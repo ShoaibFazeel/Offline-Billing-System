@@ -36,7 +36,7 @@ function BillHistory() {
     // Filter by search term (client name or bill ID)
     const matchesSearch =
       bill.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      bill._id.toLowerCase().includes(searchTerm.toLowerCase())
+      (bill.billId ? String(bill.billId).includes(searchTerm) : bill._id.toLowerCase().includes(searchTerm.toLowerCase()))
 
     // Filter by date range
     let matchesDateRange = true
@@ -64,7 +64,7 @@ function BillHistory() {
             <label className="block text-gray-700 text-sm font-bold mb-2">Search</label>
             <input
               type="text"
-              placeholder="Search by client name or bill ID..."
+              placeholder="Search by party name or invoice no..."
               className="w-full p-2 border border-gray-300 rounded-md"
               value={searchTerm}
               onChange={handleSearch}
@@ -98,9 +98,11 @@ function BillHistory() {
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Bill ID
+                Invoice No.
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Party Name
+              </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Total Amount
@@ -115,7 +117,7 @@ function BillHistory() {
               filteredBills.map((bill) => (
                 <tr key={bill._id}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    #{bill._id.substring(0, 8)}
+                    #{bill.billId ? bill.billId : bill._id}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{bill.clientName}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -126,7 +128,7 @@ function BillHistory() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <Link
-                      to={`/bill/${bill._id}`}
+                      to={`/bill/${bill.billId ? bill.billId : bill._id}`}
                       className="text-blue-600 hover:text-blue-900 mr-4"
                       onClick={() => {
                         localStorage.setItem("billSourcePage", "bills")
