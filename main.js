@@ -464,52 +464,97 @@ ipcMain.handle("add-bill", async (event, bill) => {
       // Create a deep copy of the bill to avoid modifying the original
       const billToSave = JSON.parse(JSON.stringify(bill))
 
-      // Ensure the bill has a unique billId
+      // Generate a new numeric billId if not present
       if (!billToSave.billId) {
-        billToSave.billId = uuidv4()
-      }
-
-      // Ensure all items have an _id
-      billToSave.items = ensureItemsHaveIds(billToSave.items)
-
-      // Update product quantities
-      try {
-        await updateProductQuantities(billToSave.items)
-      } catch (error) {
-        reject(error)
-        return
-      }
-
-      // Insert the bill into the database
-      db.bills.insert(billToSave, (err, newBill) => {
-        if (err) {
-          reject(err)
-        } else {
-          // Update client-product history
-          billToSave.items.forEach((item) => {
-            if (!item.isBonus) {
-              const clientProduct = {
-                clientId: billToSave.clientId,
-                productId: item.productId,
-                rate: item.rate,
-                discount: item.discount,
-                extraDiscount: item.extraDiscount || 0,
-                lastUsed: new Date(),
-              }
-
-              db.clientProducts.update(
-                { clientId: billToSave.clientId, productId: item.productId },
-                clientProduct,
-                { upsert: true },
-                (err) => {
-                  if (err) console.error("Error updating client product history:", err)
-                },
-              )
+        // Find the current max billId
+        db.bills
+          .find({ billId: { $exists: true } })
+          .sort({ billId: -1 })
+          .limit(1)
+          .exec((err, docs) => {
+            let newBillId = 1
+            if (!err && docs && docs.length > 0 && typeof docs[0].billId === 'number') {
+              newBillId = docs[0].billId + 1
             }
+            billToSave.billId = newBillId
+            billToSave._id = String(newBillId) // Use string for NeDB _id
+
+            // Ensure all items have an _id
+            billToSave.items = ensureItemsHaveIds(billToSave.items)
+
+            // Update product quantities
+            updateProductQuantities(billToSave.items)
+              .then(() => {
+                // Insert the bill into the database
+                db.bills.insert(billToSave, (err, newBill) => {
+                  if (err) {
+                    reject(err)
+                  } else {
+                    // Update client-product history
+                    billToSave.items.forEach((item) => {
+                      if (!item.isBonus) {
+                        const clientProduct = {
+                          clientId: billToSave.clientId,
+                          productId: item.productId,
+                          rate: item.rate,
+                          discount: item.discount,
+                          extraDiscount: item.extraDiscount || 0,
+                          lastUsed: new Date(),
+                        }
+                        db.clientProducts.update(
+                          { clientId: billToSave.clientId, productId: item.productId },
+                          clientProduct,
+                          { upsert: true },
+                          (err) => {
+                            if (err) console.error("Error updating client product history:", err)
+                          },
+                        )
+                      }
+                    })
+                    resolve(newBill)
+                  }
+                })
+              })
+              .catch(reject)
           })
-          resolve(newBill)
+      } else {
+        // If billId already present, just use it
+        billToSave._id = String(billToSave.billId)
+        billToSave.items = ensureItemsHaveIds(billToSave.items)
+        try {
+          await updateProductQuantities(billToSave.items)
+        } catch (error) {
+          reject(error)
+          return
         }
-      })
+        db.bills.insert(billToSave, (err, newBill) => {
+          if (err) {
+            reject(err)
+          } else {
+            billToSave.items.forEach((item) => {
+              if (!item.isBonus) {
+                const clientProduct = {
+                  clientId: billToSave.clientId,
+                  productId: item.productId,
+                  rate: item.rate,
+                  discount: item.discount,
+                  extraDiscount: item.extraDiscount || 0,
+                  lastUsed: new Date(),
+                }
+                db.clientProducts.update(
+                  { clientId: billToSave.clientId, productId: item.productId },
+                  clientProduct,
+                  { upsert: true },
+                  (err) => {
+                    if (err) console.error("Error updating client product history:", err)
+                  },
+                )
+              }
+            })
+            resolve(newBill)
+          }
+        })
+      }
     } catch (error) {
       reject(error)
     }
