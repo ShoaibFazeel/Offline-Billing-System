@@ -9,6 +9,7 @@ function InventoryManagement() {
   const [currentProduct, setCurrentProduct] = useState({
     productName: "",
     productPrice: "",
+    purchasePrice: "",
     hasInfiniteQuantity: true,
     quantity: 0,
     companyName: "",
@@ -24,6 +25,18 @@ function InventoryManagement() {
 
   useEffect(() => {
     fetchProducts()
+  }, [])
+
+  useEffect(() => {
+    // Update existing products with purchase prices (for backward compatibility)
+    const updateExistingProducts = async () => {
+      try {
+        await window.api.updateExistingProductsPurchasePrice()
+      } catch (error) {
+        console.error("Error updating existing products:", error)
+      }
+    }
+    updateExistingProducts()
   }, [])
 
   useEffect(() => {
@@ -59,6 +72,7 @@ function InventoryManagement() {
           setCurrentProduct({
             productName: "",
             productPrice: "",
+            purchasePrice: "",
             hasInfiniteQuantity: true,
             quantity: 0,
             companyName: "",
@@ -109,7 +123,7 @@ function InventoryManagement() {
       [name]:
         type === "checkbox"
           ? checked
-          : name === "productPrice" || name === "quantity"
+          : name === "productPrice" || name === "purchasePrice" || name === "quantity"
             ? Number.parseFloat(value) || 0
             : value,
     })
@@ -118,7 +132,7 @@ function InventoryManagement() {
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    if (!currentProduct.productName || !currentProduct.productPrice) {
+    if (!currentProduct.productName || !currentProduct.productPrice || !currentProduct.purchasePrice) {
       toast.error("Please fill in all required fields")
       return
     }
@@ -141,6 +155,7 @@ function InventoryManagement() {
       setCurrentProduct({
         productName: "",
         productPrice: "",
+        purchasePrice: "",
         hasInfiniteQuantity: true,
         quantity: 0,
         companyName: "",
@@ -160,6 +175,7 @@ function InventoryManagement() {
       ...product,
       hasInfiniteQuantity: product.hasInfiniteQuantity !== undefined ? product.hasInfiniteQuantity : true,
       quantity: product.quantity || 0,
+      purchasePrice: product.purchasePrice || 0, // Ensure purchasePrice exists
     }
     setCurrentProduct(productToEdit)
     setIsEditing(true)
@@ -183,6 +199,7 @@ function InventoryManagement() {
             setCurrentProduct({
               productName: "",
               productPrice: "",
+              purchasePrice: "",
               hasInfiniteQuantity: true,
               quantity: 0,
               companyName: "",
@@ -225,7 +242,8 @@ function InventoryManagement() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Container Size
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purchase Price</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sale Price</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Quantity
               </th>
@@ -243,6 +261,9 @@ function InventoryManagement() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.companyName || "-"}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.containerSize || "-"}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    PKR{product.purchasePrice.toFixed(2)}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     PKR{product.productPrice.toFixed(2)}
                   </td>
@@ -264,7 +285,7 @@ function InventoryManagement() {
               ))
             ) : (
               <tr>
-                <td colSpan="6" className="px-6 py-4 text-center text-sm text-gray-500">
+                <td colSpan="7" className="px-6 py-4 text-center text-sm text-gray-500">
                   {searchTerm
                     ? "No products found matching your search."
                     : "No products available. Add your first product!"}
@@ -320,6 +341,21 @@ function InventoryManagement() {
                   step="0.01"
                   min="0"
                   required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="purchasePrice">
+                  Purchase Price
+                </label>
+                <input
+                  type="number"
+                  id="purchasePrice"
+                  name="purchasePrice"
+                  value={currentProduct.purchasePrice}
+                  onChange={handleInputChange}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  step="0.01"
+                  min="0"
                 />
               </div>
               <div className="mb-4">

@@ -161,6 +161,11 @@ ipcMain.handle("add-product", async (event, product) => {
       product.quantity = 0
     }
 
+    // Ensure purchasePrice is set (default to productPrice if not provided)
+    if (product.purchasePrice === undefined || product.purchasePrice === null) {
+      product.purchasePrice = product.productPrice || 0
+    }
+
     db.products.insert(product, (err, newProduct) => {
       if (err) reject(err)
       else resolve(newProduct)
@@ -178,6 +183,11 @@ ipcMain.handle("update-product", async (event, product) => {
     // Ensure quantity is set if not infinite
     if (!product.hasInfiniteQuantity && product.quantity === undefined) {
       product.quantity = 0
+    }
+
+    // Ensure purchasePrice is set (default to productPrice if not provided)
+    if (product.purchasePrice === undefined || product.purchasePrice === null) {
+      product.purchasePrice = product.productPrice || 0
     }
 
     db.products.update({ _id: product._id }, product, {}, (err, numReplaced) => {
@@ -732,6 +742,38 @@ ipcMain.handle("clear-bills", async () => {
     db.bills.remove({}, { multi: true }, (err, numRemoved) => {
       if (err) reject(err)
       else resolve(numRemoved)
+    })
+  })
+})
+
+ipcMain.handle("update-existing-products-purchase-price", async () => {
+  return new Promise((resolve, reject) => {
+    // Find all products that don't have purchasePrice set
+    db.products.find({ $or: [{ purchasePrice: { $exists: false } }, { purchasePrice: null }] }, (err, products) => {
+      if (err) {
+        reject(err)
+        return
+      }
+
+      // Update each product to set purchasePrice equal to productPrice
+      const updatePromises = products.map((product) => {
+        return new Promise((resolveUpdate, rejectUpdate) => {
+          const updatedProduct = {
+            ...product,
+            purchasePrice: product.productPrice || 0
+          }
+          db.products.update({ _id: product._id }, updatedProduct, {}, (err, numReplaced) => {
+            if (err) rejectUpdate(err)
+            else resolveUpdate(numReplaced)
+          })
+        })
+      })
+
+      Promise.all(updatePromises)
+        .then((results) => {
+          resolve({ updated: results.length, total: products.length })
+        })
+        .catch(reject)
     })
   })
 })

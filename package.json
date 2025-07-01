@@ -1,14 +1,23 @@
 {
-  "name": "billing-system",
+  "name": "offline-billing-system",
   "version": "1.0.0",
   "description": "Offline Billing and Inventory Management Application",
   "main": "main.js",
   "scripts": {
-    "build-react": "webpack --mode=development",
-    "start": "npm run build-react && electron .",
-    "dev": "cross-env NODE_ENV=development npm run build-react && electron .",
+    "build-react": "webpack --mode=production",
+    "build-react-dev": "webpack --mode=development",
+    "start": "npm run build-react-dev && electron .",
+    "dev": "cross-env NODE_ENV=development npm run build-react-dev && electron .",
     "build": "npm run build-react && electron-builder",
-    "postinstall": "electron-builder install-app-deps"
+    "build:win": "npm run build-react && electron-builder --win",
+    "build:win-installer": "npm run build-react && electron-builder --win nsis",
+    "build:win-portable": "npm run build-react && electron-builder --win portable",
+    "build:win-all": "npm run build:win-installer && npm run build:win-portable",
+    "build:mac": "npm run build-react && electron-builder --mac",
+    "build:linux": "npm run build-react && electron-builder --linux",
+    "postinstall": "electron-builder install-app-deps",
+    "build:win64": "npm run build-react && electron-builder --win --x64",
+    "dist": "npm run build-react && electron-builder --publish=never"
   },
   "author": "",
   "license": "ISC",
@@ -40,25 +49,51 @@
     "webpack-cli": "^5.1.4"
   },
   "build": {
-    "appId": "com.billing.system",
-    "productName": "Billing System",
+    "appId": "com.offlinebilling.system",
+    "productName": "OfflineBillingSystem",
     "directories": {
-      "output": "dist"
+      "output": "dist",
+      "buildResources": "build-resources"
     },
     "files": [
       "build/**/*",
       "main.js",
       "preload.js",
-      "index.html"
+      "index.html",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build-resources/",
+        "to": "build-resources/",
+        "filter": ["**/*"]
+      }
     ],
     "win": {
-      "target": "nsis"
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "OfflineBillingSystem",
+      "deleteAppDataOnUninstall": false,
+      "include": "build-resources/installer.nsh"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
     },
     "mac": {
       "target": "dmg"
     },
     "linux": {
       "target": "AppImage"
-    }
+    },
+    "publish": null
   }
 }
