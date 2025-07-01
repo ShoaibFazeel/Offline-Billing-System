@@ -8,6 +8,7 @@ import SearchBar from "./SearchBar"
 function Reports() {
   const [bills, setBills] = useState([])
   const [clients, setClients] = useState([])
+  const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [addressFilter, setAddressFilter] = useState("")
   const [addresses, setAddresses] = useState([])
@@ -24,11 +25,15 @@ function Reports() {
     setLoading(true)
     setError(null)
     try {
-      // Fetch bills and clients in parallel
-      let billsData, clientsData
+      // Fetch bills, clients, and products in parallel
+      let billsData, clientsData, productsData
 
       if (window.api) {
-        ;[billsData, clientsData] = await Promise.all([window.api.getBills(), window.api.getClients()])
+        ;[billsData, clientsData, productsData] = await Promise.all([
+          window.api.getBills(),
+          window.api.getClients(),
+          window.api.getProducts(),
+        ])
       } else {
         // Mock data for testing
         console.warn("API not available, using mock data")
@@ -67,10 +72,16 @@ function Reports() {
           { _id: "client2", clientName: "XYZ Ltd", clientAddress: "Karachi" },
           { _id: "client3", clientName: "123 Industries", clientAddress: "Lahore" },
         ]
+
+        productsData = [
+          { _id: "product1", productName: "Product 1", productPrice: 100, purchasePrice: 80 },
+          { _id: "product2", productName: "Product 2", productPrice: 150, purchasePrice: 120 },
+        ]
       }
 
       setBills(billsData)
       setClients(clientsData)
+      setProducts(productsData)
 
       // Extract unique addresses from clients
       const uniqueAddresses = [...new Set(clientsData.map((client) => client.clientAddress))]
@@ -121,6 +132,47 @@ function Reports() {
   const getClientName = (clientId) => {
     const client = getClient(clientId)
     return client ? client.clientName : "Unknown Client"
+  }
+
+  // Calculate profit for a single item
+  const calculateItemProfit = (item) => {
+    const product = products.find(p => p._id === item.productId)
+    if (!product || !product.purchasePrice) return 0
+
+    const purchasePrice = product.purchasePrice
+    const salePrice = item.rate || product.productPrice
+    const quantity = item.quantity || 0
+    const discount = item.discount || 0
+    const extraDiscount = item.extraDiscount || 0
+
+    // Calculate final sale price after discounts
+    const afterDiscount = salePrice * (1 - discount / 100)
+    const finalSalePrice = afterDiscount * (1 - extraDiscount / 100)
+
+    // Calculate profit per unit
+    const profitPerUnit = finalSalePrice - purchasePrice
+
+    // Return total profit for this item
+    return profitPerUnit * quantity
+  }
+
+  // Calculate total profit for a bill
+  const calculateBillProfit = (bill) => {
+    if (!bill.items || !Array.isArray(bill.items)) return 0
+
+    return bill.items.reduce((totalProfit, item) => {
+      if (!item.isBonus) { // Only calculate profit for non-bonus items
+        return totalProfit + calculateItemProfit(item)
+      }
+      return totalProfit
+    }, 0)
+  }
+
+  // Calculate total profit for all filtered bills
+  const calculateTotalProfit = () => {
+    return filteredBills.reduce((totalProfit, bill) => {
+      return totalProfit + calculateBillProfit(bill)
+    }, 0)
   }
 
   // Filter bills based on client address, date range, and search term
@@ -174,6 +226,7 @@ function Reports() {
           groupName: address,
           bills,
           totalAmount: bills.reduce((sum, bill) => sum + (bill.totalAmount || 0), 0),
+          totalProfit: bills.reduce((sum, bill) => sum + calculateBillProfit(bill), 0),
         }))
     } else if (groupBy === "client") {
       // Group by client name
@@ -195,14 +248,13 @@ function Reports() {
           groupName: clientName,
           bills,
           totalAmount: bills.reduce((sum, bill) => sum + (bill.totalAmount || 0), 0),
+          totalProfit: bills.reduce((sum, bill) => sum + calculateBillProfit(bill), 0),
         }))
     } else if (groupBy === "date") {
       // Group by month/year
       const groups = {}
 
       filteredBills.forEach((bill) => {
-        if (!bill.billDate) return
-
         const date = new Date(bill.billDate)
         const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
 
@@ -212,32 +264,15 @@ function Reports() {
         groups[monthYear].push(bill)
       })
 
-      // Convert to array and sort by date (newest first)
+      // Convert to array and sort by date
       return Object.entries(groups)
-        .sort(([dateA], [dateB]) => dateB.localeCompare(dateA))
-        .map(([monthYear, bills]) => {
-          const [year, month] = monthYear.split("-")
-          const monthNames = [
-            "January",
-            "February",
-            "March",
-            "April",
-            "May",
-            "June",
-            "July",
-            "August",
-            "September",
-            "October",
-            "November",
-            "December",
-          ]
-
-          return {
-            groupName: `${monthNames[Number.parseInt(month) - 1]} ${year}`,
+        .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
+        .map(([monthYear, bills]) => ({
+          groupName: monthYear,
             bills,
             totalAmount: bills.reduce((sum, bill) => sum + (bill.totalAmount || 0), 0),
-          }
-        })
+          totalProfit: bills.reduce((sum, bill) => sum + calculateBillProfit(bill), 0),
+        }))
     }
 
     return []
@@ -261,7 +296,7 @@ function Reports() {
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
     const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
     const margin = 40
-    const col = [left, left+60, left+260, left+400, left+500]
+    const col = [left, left+80, left+200, left+320, left+420]
     // --- Header ---
     const companyName = companyInfo.companyName || "Company Name"
     const companyAddress = companyInfo.companyAddress || "Address"
@@ -318,6 +353,7 @@ function Reports() {
       page.drawText("Party Name", { x: col[1], y, size: 11, font: bold })
       page.drawText("Address", { x: col[2], y, size: 11, font: bold })
       page.drawText("Amount", { x: col[3], y, size: 11, font: bold })
+      page.drawText("Profit", { x: col[4], y, size: 11, font: bold })
       y -= 14
       page.drawLine({ start: { x: left, y }, end: { x: right + 50, y }, thickness: 0.5, color: rgb(0,0,0) })
       y -= 8
@@ -327,6 +363,7 @@ function Reports() {
         page.drawText(bill.clientName || getClientName(bill.clientId), { x: col[1], y, size: 10, font })
         page.drawText(bill.clientAddress || getClientAddress(bill.clientId), { x: col[2], y, size: 10, font })
         page.drawText(bill.totalAmount ? bill.totalAmount.toFixed(2) : "0.00", { x: col[3], y, size: 10, font })
+        page.drawText(calculateBillProfit(bill).toFixed(2), { x: col[4], y, size: 10, font })
         areaTotal += bill.totalAmount || 0
         y -= 14
       }
@@ -334,6 +371,9 @@ function Reports() {
       y -= 2
       page.drawText(`City / Area Total:`, { x: col[2], y, size: 11, font: bold })
       page.drawText(areaTotal.toFixed(2), { x: col[3], y, size: 11, font: bold })
+      y -= 14
+      page.drawText(`City / Area Profit:`, { x: col[2], y, size: 11, font: bold })
+      page.drawText(group.totalProfit.toFixed(2), { x: col[4], y, size: 11, font: bold })
       grandTotal += areaTotal
       y -= 18
       // Horizontal line after group
@@ -349,6 +389,9 @@ function Reports() {
     y -= 10
     page.drawText("Total Amount:", { x: col[2], y, size: 12, font: bold })
     page.drawText(grandTotal.toFixed(2), { x: col[3], y, size: 12, font: bold })
+    y -= 20
+    page.drawText("Total Profit:", { x: col[2], y, size: 12, font: bold })
+    page.drawText(calculateTotalProfit().toFixed(2), { x: col[4], y, size: 12, font: bold })
     return await pdfDoc.save()
   }
 
@@ -513,7 +556,10 @@ function Reports() {
             <div key={groupIndex} className="mb-8">
               <h2 className="text-xl font-semibold mb-4 bg-gray-100 p-3 rounded-md flex justify-between">
                 <span>{group.groupName}</span>
-                <span>Total: PKR {group.totalAmount.toFixed(2)}</span>
+                <div className="text-right">
+                  <div>Total: PKR {group.totalAmount.toFixed(2)}</div>
+                  <div className="text-sm text-green-600">Profit: PKR {group.totalProfit.toFixed(2)}</div>
+                </div>
               </h2>
 
               <div className="bg-white rounded-lg shadow overflow-hidden mb-4">
@@ -527,10 +573,13 @@ function Reports() {
                         Party Name
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Date
+                        Address
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Total Amount
+                        Amount
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Profit
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions
@@ -547,10 +596,15 @@ function Reports() {
                           {bill.clientName || getClientName(bill.clientId)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {bill.billDate ? new Date(bill.billDate).toLocaleDateString() : "N/A"}
+                          {bill.clientAddress || getClientAddress(bill.clientId)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           PKR {bill.totalAmount ? bill.totalAmount.toFixed(2) : "0.00"}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <span className={calculateBillProfit(bill) >= 0 ? "text-green-600" : "text-red-600"}>
+                            PKR {calculateBillProfit(bill).toFixed(2)}
+                          </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <a
@@ -573,7 +627,10 @@ function Reports() {
           ))}
 
           <div className="bg-white rounded-lg shadow p-4 mt-4">
-            <div className="text-xl font-bold text-right">Grand Total: PKR {calculateGrandTotal().toFixed(2)}</div>
+            <div className="text-xl font-bold text-right">
+              <div>Grand Total: PKR {calculateGrandTotal().toFixed(2)}</div>
+              <div className="text-lg text-green-600">Total Profit: PKR {calculateTotalProfit().toFixed(2)}</div>
+            </div>
           </div>
         </div>
       ) : (

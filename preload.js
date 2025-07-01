@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("api", {
   addProduct: (product) => ipcRenderer.invoke("add-product", product),
   updateProduct: (product) => ipcRenderer.invoke("update-product", product),
   importProducts: (products) => ipcRenderer.invoke("import-products", products),
+  updateExistingProductsPurchasePrice: () => ipcRenderer.invoke("update-existing-products-purchase-price"),
 
   // Clients
   getClients: () => ipcRenderer.invoke("get-clients"),
