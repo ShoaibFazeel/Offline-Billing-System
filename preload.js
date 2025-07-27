@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld("api", {
   getBill: (billId) => ipcRenderer.invoke("get-bill", billId),
   addBill: (bill) => ipcRenderer.invoke("add-bill", bill),
   updateBill: (bill) => ipcRenderer.invoke("update-bill", bill),
+  deleteBill: (billId) => ipcRenderer.invoke("delete-bill", billId),
   importBills: (bills) => ipcRenderer.invoke("import-bills", bills),
 
   // Client-Product history

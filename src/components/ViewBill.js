@@ -456,6 +456,31 @@ function ViewBill() {
     }
   }
 
+  const deleteBill = async () => {
+    if (!window.confirm("Are you sure you want to delete this bill? This action cannot be undone and will restore product quantities.")) {
+      return
+    }
+
+    try {
+      await window.api.deleteBill(bill._id)
+      toast.success("Bill deleted successfully")
+      // Navigate back to bills list
+      const sourcePage = localStorage.getItem("billSourcePage") || "bills"
+      localStorage.removeItem("billSourcePage")
+      
+      if (sourcePage === "dashboard") {
+        window.location.hash = "#/"
+      } else if (sourcePage === "reports") {
+        window.location.hash = "#/reports"
+      } else {
+        window.location.hash = "#/bills"
+      }
+    } catch (error) {
+      console.error("Error deleting bill:", error)
+      toast.error("Failed to delete bill")
+    }
+  }
+
   // Add keyboard navigation for search dropdowns
   const [selectedClientIndex, setSelectedClientIndex] = useState(-1)
   const [selectedFieldOfficerIndex, setSelectedFieldOfficerIndex] = useState(-1)
@@ -750,6 +775,12 @@ function ViewBill() {
                 className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
               >
                 Print PDF
+              </button>
+              <button
+                onClick={deleteBill}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md"
+              >
+                Delete Bill
               </button>
             </>
           )}

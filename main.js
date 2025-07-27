@@ -441,6 +441,43 @@ ipcMain.handle("get-bills", async () => {
   })
 })
 
+ipcMain.handle("delete-bill", async (event, billId) => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      // First, get the bill to check if we need to update product quantities
+      const bill = await new Promise((resolve, reject) => {
+        db.bills.findOne({ _id: billId }, (err, bill) => {
+          if (err) reject(err)
+          else resolve(bill)
+        })
+      })
+
+      if (!bill) {
+        reject(new Error("Bill not found"))
+        return
+      }
+
+      // Update product quantities (add back the quantities that were sold)
+      if (bill.items && bill.items.length > 0) {
+        await updateProductQuantities(bill.items, true) // true = refund mode
+      }
+
+      // Delete the bill
+      db.bills.remove({ _id: billId }, {}, (err, numRemoved) => {
+        if (err) {
+          reject(err)
+        } else if (numRemoved === 0) {
+          reject(new Error("Bill not found"))
+        } else {
+          resolve({ success: true, message: "Bill deleted successfully" })
+        }
+      })
+    } catch (error) {
+      reject(error)
+    }
+  })
+})
+
 ipcMain.handle("get-bill", async (event, billId) => {
   return new Promise((resolve, reject) => {
     db.bills.findOne({ _id: billId }, (err, bill) => {
