@@ -994,6 +994,7 @@ function BillGeneration() {
                   >
                     <div className="font-medium">{client.clientName}</div>
                     <div className="text-sm">{client.clientNumber}</div>
+                    <div className="text-sm">{client.clientAddress}</div>
                   </div>
                 ))}
               </div>

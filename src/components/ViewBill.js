@@ -405,33 +405,15 @@ function ViewBill() {
 
   // Helper function to generate PDF bytes
   const generatePdfBytes = async () => {
-    // Get client details
-    const client = clients.find((c) => c._id === bill.clientId) || {
-      clientName: bill.clientName,
-      clientAddress: "N/A",
-      clientNumber: "N/A",
-      isFiler: false,
-      ntnNumber: "",
-    }
-
-    // Get field officer details
-    const fieldOfficer = fieldOfficers.find((o) => o._id === bill.fieldOfficerId) || {
-      name: bill.fieldOfficerName || "N/A",
-      phoneNumber: "N/A",
-    }
-
-    // Get salesman details
-    const salesman = salesmen.find((s) => s._id === bill.salesmanId) || {
-      name: bill.salesmanName || "N/A",
-      phoneNumber: "N/A",
-    }
-
-    // Get company info
+    // Fetch required data
+    const client = await window.api.getClient(bill.clientId)
+    const fieldOfficer = await window.api.getFieldOfficer(bill.fieldOfficerId)
+    const salesman = await window.api.getSalesman(bill.salesmanId)
     const companyInfo = await window.api.getCompanyInfo()
 
-    // Generate PDF
+    // Pass showDiscountAsAmount and products to PdfGenerator
     const pdfGenerator = new PdfGenerator()
-    return await pdfGenerator.generateInvoicePdf(bill, client, companyInfo, fieldOfficer, salesman)
+    return await pdfGenerator.generateInvoicePdf(bill, client, companyInfo, fieldOfficer, salesman, showDiscountAsAmount, products)
   }
 
   // Download PDF
