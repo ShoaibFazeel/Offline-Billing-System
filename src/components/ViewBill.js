@@ -269,16 +269,20 @@ function ViewBill() {
     // First apply percentage discount
     const afterDiscount = quantity * rate * (1 - discount / 100)
     // Then apply extra discount (as percentage)
-    return afterDiscount * (1 - extraDiscount / 100)
+    const finalTotal = afterDiscount * (1 - extraDiscount / 100)
+    // Round to 2 decimal places to avoid floating point precision issues
+    return Math.round(finalTotal * 100) / 100
   }
 
   const calculateBillTotal = (items) => {
-    return items.reduce((sum, item) => {
+    const total = items.reduce((sum, item) => {
       if (!item.isBonus) {
-        return sum + item.total
+        return sum + (item.total || 0)
       }
       return sum
     }, 0)
+    // Round to 2 decimal places to avoid floating point precision issues
+    return Math.round(total * 100) / 100
   }
 
   const addItem = () => {
