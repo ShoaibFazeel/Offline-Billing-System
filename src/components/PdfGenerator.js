@@ -6,9 +6,9 @@ class PdfGenerator {
     this.bill = bill
     this.companyInfo = companyInfo
     this.doc = null
-    this.pageWidth = 595.28 // A4 width in points (8.27 × 11.69 inches)
-    this.pageHeight = 841.89 // A4 height in points
-    this.margin = 40
+    this.pageWidth = 425.2 // 15cm in points
+    this.pageHeight = 595.3 // 21cm in points
+    this.margin = 24 // reduce margin for smaller page
     this.fontSize = {
       title: 16,
       subtitle: 12,
@@ -25,138 +25,171 @@ class PdfGenerator {
     }
   }
 
-  async generateInvoicePdf(bill, client, companyInfo, fieldOfficer, salesman) {
+  async generateInvoicePdf(bill, client, companyInfo, fieldOfficer, salesman, showDiscountAsAmount = false, products = []) {
     try {
       const pdfDoc = await PDFDocument.create()
-      const page = pdfDoc.addPage([595.28, 841.89]) // A4 size
+      let page = pdfDoc.addPage([this.pageWidth, this.pageHeight])
       const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
       const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
-      let y = 800
-      const left = 40
-      const right = 555
-      const lineHeight = 20 // Increased spacing
-      const tableStartY = 570
-      const pageBottom = 60 // Margin from bottom for footer
-
-      // --- Header ---
-      // Center the company name at the top
-      const pageWidth = 595.28;
-      const companyName = companyInfo.companyName || "Company Name";
-      const companyAddress = companyInfo.companyAddress || "Address";
-      const companyOwner = companyInfo.ownerName || "Owner";
-      const companyOwnerPhone = companyInfo.ownerPhone || "Phone";
-
-      const companyNameWidth = bold.widthOfTextAtSize(companyName, 16);
-      const companyAddressWidth = font.widthOfTextAtSize(companyAddress, 10);
-      const companyOwnerWidth = font.widthOfTextAtSize(companyOwner, 10);
-      const companyOwnerPhoneWidth = font.widthOfTextAtSize(companyOwnerPhone, 10);
-
-      page.drawText(companyName, {
-        x: (pageWidth - companyNameWidth) / 2,
-        y,
-        size: 16,
-        font: bold,
-        color: rgb(0, 0, 0),
-      })
-      page.drawText(companyInfo.companyAddress || "Address", {
-        x: (pageWidth - companyAddressWidth) / 2,
-        y: y - 22,
-        size: 10,
-        font,
-        color: rgb(0, 0, 0),
-      })
-      page.drawText(
-        `Owner: ${companyInfo.ownerName || "-"} ${companyInfo.ownerPhone || "-"}`,
-        { x: (pageWidth - (companyOwnerWidth+companyOwnerPhoneWidth)) / 2, y: y - 40, size: 10, font, color: rgb(0, 0, 0) }
-      )
-      // Draw a line
-      page.drawLine({ start: { x: left, y: y - 68 }, end: { x: right, y: y - 68 }, thickness: 1, color: rgb(0,0,0) })
-      y -= 88
-
-      // --- Invoice Info Row ---
-      page.drawText(`Invoice No: ${bill.billId ? bill.billId : bill._id}` , { x: left, y, size: 12, font: bold })
-      page.drawText(`Date: ${new Date(bill.billDate).toLocaleDateString()}` , { x: right - 120, y, size: 12, font })
-      y -= lineHeight
-      page.drawText(`Name: ${client.clientName || "N/A"}` , { x: left, y, size: 12, font })
-      const now = new Date();
-      page.drawText(`Printing Date: ${now.toLocaleDateString()}` , { x: right - 180, y, size: 11, font })
-      y -= 14;
-      page.drawText(`Printing Time: ${now.toLocaleTimeString()}` , { x: right - 180, y, size: 11, font })
-      y -= lineHeight
-      page.drawText(`Address: ${client.clientAddress || "N/A"}` , { x: left, y, size: 12, font })
-      y -= lineHeight
-      page.drawText(`F. Officer: ${fieldOfficer.name || "N/A"} ${fieldOfficer.phoneNumber || ""}` , { x: left, y, size: 12, font })
-      page.drawText(`Salesman: ${salesman.name || "N/A"} ${salesman.phoneNumber || ""}` , { x: right - 180, y, size: 12, font })
-      y -= lineHeight + 8
-
-      // --- Table Header ---
-      const col = [left, left+22, left+220, left+260, left+300, left+350, left+400, left+470]
-      page.drawText("S#", { x: col[0], y, size: 11, font: bold })
-      page.drawText("Description", { x: col[1], y, size: 11, font: bold })
-      page.drawText("Qty", { x: col[2], y, size: 11, font: bold })
-      page.drawText("Bns", { x: col[3], y, size: 11, font: bold })
-      page.drawText("Rate", { x: col[4], y, size: 11, font: bold })
-      page.drawText("Disc Net", { x: col[5], y, size: 11, font: bold })
-      page.drawText("Total", { x: col[6], y, size: 11, font: bold })
-      y -= 16
-      page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 0.5, color: rgb(0,0,0) })
-      y -= 16 // More space before product list
-
-      // --- Table Rows ---
-      bill.items.forEach((item, idx) => {
-        if (!item.productName) return
-        page.drawText(String(idx + 1), { x: col[0], y, size: 11, font })
-        page.drawText(item.productName, { x: col[1], y, size: 11, font })
-        page.drawText(String(item.quantity), { x: col[2], y, size: 11, font })
-        page.drawText(item.isBonus ? String(item.quantity) : "", { x: col[3], y, size: 11, font })
-        page.drawText(item.rate.toFixed(2), { x: col[4], y, size: 11, font })
-        const discNet = ((item.rate * item.quantity * (item.discount || 0)) / 100).toFixed(2)
-        page.drawText(discNet, { x: col[5], y, size: 11, font })
-        page.drawText(item.total.toFixed(2), { x: col[6], y, size: 11, font })
-        y -= 18 // More space between rows
-      })
+      let y = this.pageHeight - this.margin
+      const left = this.margin
+      const right = this.pageWidth - this.margin
+      const minFooterSpace = 140
+      // --- HEADER ---
+      const companyName = companyInfo.companyName || "Company Name"
+      const companyAddress = companyInfo.companyAddress || "Address"
+      const companyOwner = companyInfo.ownerName || "Owner"
+      const companyOwnerPhone = companyInfo.ownerPhone || "Phone"
+      const companyNameWidth = bold.widthOfTextAtSize(companyName, 20)
+      const companyAddressWidth = font.widthOfTextAtSize(companyAddress, 12)
+      page.drawText(companyName, { x: (this.pageWidth-companyNameWidth)/2, y, size: 20, font: bold, color: this.colors.black })
+      y -= 24
+      page.drawText(companyAddress, { x: (this.pageWidth-companyAddressWidth)/2, y, size: 12, font, color: this.colors.black })
+      y -= 18
+      page.drawText(`Owner: ${companyOwner} ${companyOwnerPhone}`, { x: left+35, y, size: 11, font: bold, color: rgb(0.1,0.1,0.5) })
+      y -= 10
+      page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 1, color: this.colors.black })
+      y -= 13
+      // --- INVOICE INFO ---
+      page.drawText(`Invoice No: ${bill.billId ? bill.billId : bill._id}`, { x: left, y, size: 11, font: bold })
+      const now = new Date()
+      page.drawText(`Date: ${new Date(bill.billDate).toLocaleDateString()}`, { x: right-120, y, size: 11, font })
+      y -= 13
+      page.drawText(`Name:`, { x: left, y, size: 11, font: bold })
+      page.drawText(client.clientName || "N/A", { x: left+50, y, size: 11, font: bold })
+      page.drawText(`Printing Date: ${now.toLocaleDateString()}`, { x: right-120, y, size: 10, font })
+      y -= 13
+      if (client.clientNumber) {
+        page.drawText(`Phone:`, { x: left, y, size: 10, font })
+        page.drawText(client.clientNumber, { x: left+50, y, size: 10, font })
+        y -= 13
+      }
+      page.drawText(`Address:`, { x: left, y, size: 10, font })
+      page.drawText(client.clientAddress || "N/A", { x: left+50, y, size: 10, font })
+      y -= 13
+      page.drawText(`F. Officer: ${fieldOfficer.name || "N/A"} ${fieldOfficer.phoneNumber || ""}`, { x: left, y, size: 10, font })
+      y -= 13
+      page.drawText(`Salesman: ${salesman.name || "N/A"} ${salesman.phoneNumber || ""}`, { x: left, y, size: 10, font })
+      y -= 14
+      // --- TABLE HEADER ---
+      page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 0.5, color: this.colors.black })
       y -= 12
-      page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 0.5, color: rgb(0,0,0) })
-      y -= 20
+      const col = [left, left+18, left+170, left+200, left+230, left+270, left+320]
+      page.drawText("S#", { x: col[0], y, size: 10, font: bold })
+      page.drawText("Description", { x: col[1], y, size: 10, font: bold })
+      page.drawText("Qty", { x: col[2], y, size: 10, font: bold })
+      page.drawText("Bns", { x: col[3], y, size: 10, font: bold })
+      page.drawText("Rate", { x: col[4], y, size: 10, font: bold })
+      page.drawText(showDiscountAsAmount ? "Disc Amt" : "Disc %", { x: col[5], y, size: 10, font: bold })
+      page.drawText("Total", { x: col[6], y, size: 10, font: bold })
+      y -= 5
+      page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 0.5, color: this.colors.black })
+      y -= 12
+      // --- TABLE ROWS ---
+      for (let idx = 0; idx < bill.items.length; idx++) {
+        const item = bill.items[idx]
+        if (!item.productName) continue
+        const product = products.find(p => p._id === item.productId) || {}
+        const descColWidth = col[2] - col[1] - 4
+        let tempY = y
+        tempY = this.drawWrappedText(page, item.productName, col[1], tempY, descColWidth, bold, 10, this.colors.black, true)
+        if (product.companyName || product.containerSize) {
+          let companyText = product.companyName || ""
+          let sizeText = product.containerSize || ""
+          let extra = companyText + (companyText && sizeText ? " - " : "") + sizeText
+          if (extra) {
+            tempY = this.drawWrappedText(page, extra, col[1], tempY, descColWidth, font, 8, rgb(0.3,0.3,0.3), true)
+          }
+        }
+        const rowHeight = y - tempY + 4
+        // PAGE BREAK if not enough space for row + footer
+        if (y - rowHeight < minFooterSpace) {
+          page = pdfDoc.addPage([this.pageWidth, this.pageHeight])
+          y = this.pageHeight - this.margin
+          // Redraw table header
+          page.drawText("S#", { x: col[0], y, size: 10, font: bold })
+          page.drawText("Description", { x: col[1], y, size: 10, font: bold })
+          page.drawText("Qty", { x: col[2], y, size: 10, font: bold })
+          page.drawText("Bns", { x: col[3], y, size: 10, font: bold })
+          page.drawText("Rate", { x: col[4], y, size: 10, font: bold })
+          page.drawText(showDiscountAsAmount ? "Disc Amt" : "Disc %", { x: col[5], y, size: 10, font: bold })
+          page.drawText("Total", { x: col[6], y, size: 10, font: bold })
+          y -= 12
+          page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 0.5, color: this.colors.black })
+          y -= 4
+        }
 
-      // --- Totals Section ---
+        page.drawText(String(idx + 1), { x: col[0], y: y-2, size: 10, font })
+        let y2 = this.drawWrappedText(page, item.productName, col[1], y, descColWidth, bold, 10, this.colors.black)
+        if (product.companyName || product.containerSize) {
+          let companyText = product.companyName || ""
+          let sizeText = product.containerSize || ""
+          let extra = companyText + (companyText && sizeText ? " - " : "") + sizeText
+          if (extra) {
+            y2 = this.drawWrappedText(page, extra, col[1], y2, descColWidth, font, 8, rgb(0.3,0.3,0.3))
+          }
+        }
+        // Reset y to top of row for other columns
+        const colY = y - rowHeight/2 + 2
+        page.drawText(String(item.quantity), { x: col[2], y: colY, size: 10, font })
+        page.drawText(item.isBonus ? String(item.quantity) : "", { x: col[3], y: colY, size: 10, font })
+        page.drawText(item.rate.toFixed(2), { x: col[4], y: colY, size: 10, font })
+        if (showDiscountAsAmount) {
+          const discAmt = ((item.rate * item.quantity * (item.discount || 0)) / 100).toFixed(2)
+          page.drawText(discAmt, { x: col[5], y: colY, size: 10, font })
+        } else {
+          page.drawText(`${item.discount || 0}%`, { x: col[5], y: colY, size: 10, font })
+        }
+        page.drawText(item.total.toFixed(2), { x: col[6], y: colY, size: 10, font })
+        y = y - rowHeight - 2
+      }
+      y += 10
+      page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 0.5, color: this.colors.black })
+      y -= 15
+      // --- TOTALS & FOOTER ---
+      if (y < minFooterSpace) {
+        page = pdfDoc.addPage([this.pageWidth, this.pageHeight])
+        y = this.pageHeight - this.margin
+      }
+      // Totals
       const grossAmount = bill.items.reduce((sum, item) => !item.isBonus ? sum + item.quantity * item.rate : sum, 0)
       const totalDiscount = bill.items.reduce((sum, item) => !item.isBonus ? sum + ((item.rate * item.quantity * (item.discount || 0)) / 100) : sum, 0)
       const partyStatus = client.isFiler ? "FILER" : "NON FILER"
-      const ntn = client.ntnNumber || ""
-      page.drawText(`Party Status: ${partyStatus}`, { x: left, y, size: 11, font: bold })
-      page.drawText(`NTN No: ${ntn}`, { x: left + 180, y, size: 11, font })
-      page.drawText(`Gross Amount:`, { x: left + 300, y, size: 11, font })
-      page.drawText(grossAmount.toFixed(2), { x: left + 400, y, size: 11, font })
-      y -= 18
-      page.drawText(`Advance Tax:`, { x: left + 300, y, size: 11, font })
-      page.drawText("0.00", { x: left + 400, y, size: 11, font })
-      y -= 18
-      page.drawText(`Discount:`, { x: left + 300, y, size: 11, font })
-      page.drawText(totalDiscount.toFixed(2), { x: left + 400, y, size: 11, font })
-      y -= 18
-      page.drawText(`TOTAL AMOUNT:`, { x: left + 300, y, size: 12, font: bold })
-      page.drawText(bill.totalAmount.toFixed(2), { x: left + 430, y, size: 12, font: bold })
-      y -= 30
-      page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 0.5, color: rgb(0,0,0) })
-
-      // --- Footer: Always at the bottom ---
-      let footerY = pageBottom
-      // Draw a line just above the footer block
-      page.drawLine({ start: { x: left, y: footerY + 75 }, end: { x: right, y: footerY + 75 }, thickness: 0.5, color: rgb(0,0,0) })
-      page.drawText("Prepared By", { x: left + 40, y: footerY + 60, size: 11, font })
-      page.drawText("Checked By", { x: left + 200, y: footerY + 60, size: 11, font })
-      page.drawText("TOTAL AMOUNT:", { x: left + 350, y: footerY + 60, size: 11, font: bold })
-      page.drawText(bill.totalAmount.toFixed(2), { x: left + 450, y: footerY + 60, size: 11, font: bold })
-      // Warranty/Notes
-      page.drawText("General Warranty: under alternative medicine & health products (enlistment) Rules 2014", { x: left, y: footerY + 44, size: 8, font })
-      page.drawText("We as the authorised distributors/agents and on behalf of the Principals/Manufacturer hereby give warranty that the", { x: left, y: footerY + 34, size: 8, font })
-      page.drawText("supplied alternative medicines & health products mentioned herein do not contravene any provision of the prevailing DRAP Act & rules", { x: left, y: footerY + 24, size: 8, font })
-      page.drawText("Note: (A) For dated (expired) items, Please inform 6 months before actual expiry date.", { x: left, y: footerY + 14, size: 8, font })
-      page.drawText("(B) This warranty does not apply to the ayurvedic, general items, unani, food items mentioned in this cash memo/invoice.", { x: left, y: footerY + 4, size: 8, font })
-      page.drawText("Designed By: Shoaib Fazeel B - 24/7 Hours Help Line (0347-8405935, 0307-6341160)", { x: left, y: footerY - 10, size: 8, font })
-      page.drawText("Page # 1", { x: right - 40, y: footerY - 10, size: 8, font })
-
+      // const ntn = client.ntnNumber || ""
+      page.drawText(`Party Status: ${partyStatus}`, { x: left, y, size: 10, font: bold })
+      // page.drawText(`NTN No: ${ntn}`, { x: left + 120, y, size: 10, font })
+      const boxX = left + 160
+      const boxY = y - 5
+      const boxWidth = 180
+      const boxHeight = 65
+      page.drawRectangle({ x: boxX, y: boxY - boxHeight, width: boxWidth, height: boxHeight, borderColor: this.colors.black, borderWidth: 1, color: rgb(0.97,0.97,0.97) })
+      let boxTextY = boxY - 16
+      page.drawText(`Gross Amount:`, { x: boxX + 8, y: boxTextY, size: 10, font: bold })
+      page.drawText(grossAmount.toFixed(2), { x: boxX + 120, y: boxTextY, size: 10, font })
+      boxTextY -= 14
+      page.drawText(`Advance Tax:`, { x: boxX + 8, y: boxTextY, size: 10, font: bold })
+      page.drawText("0.00", { x: boxX + 120, y: boxTextY, size: 10, font })
+      boxTextY -= 14
+      page.drawText(`Discount:`, { x: boxX + 8, y: boxTextY, size: 10, font: bold })
+      page.drawText(totalDiscount.toFixed(2), { x: boxX + 120, y: boxTextY, size: 10, font })
+      boxTextY -= 14
+      page.drawText(`TOTAL AMOUNT:`, { x: boxX + 8, y: boxTextY, size: 11, font: bold })
+      page.drawText(bill.totalAmount.toFixed(2), { x: boxX + 120, y: boxTextY, size: 11, font: bold })
+      y -= boxHeight + 60
+      // Footer
+      let footerY = y
+      page.drawLine({ start: { x: left, y: footerY + 38 }, end: { x: right, y: footerY + 38 }, thickness: 0.5, color: this.colors.black })
+      page.drawText("Prepared By", { x: left + 10, y: footerY + 24, size: 9, font })
+      page.drawText("Checked By", { x: left + 90, y: footerY + 24, size: 9, font })
+      page.drawText("TOTAL AMOUNT:", { x: left + 180, y: footerY + 24, size: 9, font: bold })
+      page.drawText(bill.totalAmount.toFixed(2), { x: left + 260, y: footerY + 24, size: 9, font: bold })
+      page.drawText("General Warranty: under alternative medicine & health products (enlistment) Rules 2014", { x: left, y: footerY + 10, size: 7, font })
+      page.drawText("We as the authorised distributors/agents and on behalf of the Principals/Manufacturer hereby give warranty that the", { x: left, y: footerY + 2, size: 7, font })
+      page.drawText("supplied alternative medicines & health products mentioned herein do not contravene any provision of the prevailing DRAP Act & rules", { x: left, y: footerY - 6, size: 7, font })
+      page.drawText("Note: (A) For dated (expired) items, Please inform 6 months before actual expiry date.", { x: left, y: footerY - 14, size: 7, font })
+      page.drawText("(B) This warranty does not apply to the ayurvedic, general items, unani, food items mentioned in this cash memo/invoice.", { x: left, y: footerY - 22, size: 7, font })
+      page.drawText("Designed By: Shoaib Fazeel B - 24/7 Hours Help Line (0347-8405935, 0307-6341160)", { x: left, y: footerY - 32, size: 7, font })
+      page.drawText("Page # 1", { x: right - 40, y: footerY - 32, size: 7, font })
       return await pdfDoc.save()
     } catch (error) {
       console.error("Error generating PDF:", error)
@@ -1001,47 +1034,30 @@ class PdfGenerator {
   }
 
   // Helper function to draw wrapped text - Fixed to handle newlines properly
-  drawWrappedText(page, text, x, y, maxWidth, font, fontSize, color) {
-    // Split the text into words
-    const words = text.split(" ")
-    let line = ""
-    let lineY = y
-    const lineHeight = fontSize * 1.2
-
+  drawWrappedText(page, text, x, y, maxWidth, font, fontSize, color, measureOnly = false) {
+    const words = text.split(" ");
+    let line = "";
+    let lineY = y;
+    const lineHeight = fontSize * 1.2;
     for (const word of words) {
-      // Test if adding this word would exceed the max width
-      const testLine = line + (line ? " " : "") + word
-      const testWidth = font.widthOfTextAtSize(testLine, fontSize)
-
+      const testLine = line + (line ? " " : "") + word;
+      const testWidth = font.widthOfTextAtSize(testLine, fontSize);
       if (testWidth > maxWidth && line !== "") {
-        // Draw the current line and move to the next line
-        page.drawText(line, {
-          x,
-          y: lineY,
-          size: fontSize,
-          font,
-          color,
-        })
-
-        line = word
-        lineY -= lineHeight
+        if (!measureOnly) {
+          page.drawText(line, { x, y: lineY, size: fontSize, font, color });
+        }
+        line = word;
+        lineY -= lineHeight;
       } else {
-        line = testLine
+        line = testLine;
       }
     }
-
-    // Draw the last line if there's any text left
     if (line) {
-      page.drawText(line, {
-        x,
-        y: lineY,
-        size: fontSize,
-        font,
-        color,
-      })
+      if (!measureOnly) {
+        page.drawText(line, { x, y: lineY, size: fontSize, font, color });
+      }
     }
-
-    return lineY - lineHeight
+    return lineY - lineHeight;
   }
 }
 

@@ -32,6 +32,21 @@ function BillHistory() {
     setDateFilter({ ...dateFilter, [name]: value })
   }
 
+  const handleDeleteBill = async (billId) => {
+    if (!window.confirm("Are you sure you want to delete this bill? This action cannot be undone and will restore product quantities.")) {
+      return
+    }
+
+    try {
+      await window.api.deleteBill(billId)
+      toast.success("Bill deleted successfully")
+      fetchBills() // Refresh the bills list
+    } catch (error) {
+      console.error("Error deleting bill:", error)
+      toast.error("Failed to delete bill")
+    }
+  }
+
   const filteredBills = bills.filter((bill) => {
     // Filter by search term (client name or bill ID)
     const matchesSearch =
@@ -115,27 +130,33 @@ function BillHistory() {
           <tbody className="bg-white divide-y divide-gray-200">
             {filteredBills.length > 0 ? (
               filteredBills.map((bill) => (
-                <tr key={bill._id}>
+                <tr key={bill._id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    #{bill.billId ? bill.billId : bill._id}
+                    {bill.billId ? bill.billId : bill._id.substring(0, 8)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{bill.clientName}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(bill.billDate).toLocaleDateString()}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    PKR {bill.totalAmount.toFixed(2)}
-                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{bill.clientName}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">PKR {bill.totalAmount.toFixed(2)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <Link
-                      to={`/bill/${bill.billId ? bill.billId : bill._id}`}
-                      className="text-blue-600 hover:text-blue-900 mr-4"
-                      onClick={() => {
-                        localStorage.setItem("billSourcePage", "bills")
-                      }}
-                    >
-                      View
-                    </Link>
+                    <div className="flex space-x-2">
+                      <Link
+                        to={`/bill/${bill._id}`}
+                        className="text-blue-600 hover:text-blue-900"
+                        onClick={() => {
+                          localStorage.setItem("billSourcePage", "bills")
+                        }}
+                      >
+                        View
+                      </Link>
+                      <button
+                        onClick={() => handleDeleteBill(bill._id)}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))

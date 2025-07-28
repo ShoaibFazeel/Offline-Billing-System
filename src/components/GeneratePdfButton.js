@@ -2,7 +2,7 @@
 import toast from "react-hot-toast"
 import PdfGenerator from "./PdfGenerator"
 
-function GeneratePdfButton({ bill, className }) {
+function GeneratePdfButton({ bill, className, showDiscountAsAmount = false, products = [] }) {
   // Helper function to generate PDF bytes
   const generatePdfBytes = async () => {
     // Fetch required data
@@ -13,7 +13,7 @@ function GeneratePdfButton({ bill, className }) {
 
     // Generate PDF
     const pdfGenerator = new PdfGenerator()
-    return await pdfGenerator.generateInvoicePdf(bill, client, companyInfo, fieldOfficer, salesman)
+    return await pdfGenerator.generateInvoicePdf(bill, client, companyInfo, fieldOfficer, salesman, showDiscountAsAmount, products)
   }
 
   const generatePdf = async () => {

@@ -269,16 +269,20 @@ function ViewBill() {
     // First apply percentage discount
     const afterDiscount = quantity * rate * (1 - discount / 100)
     // Then apply extra discount (as percentage)
-    return afterDiscount * (1 - extraDiscount / 100)
+    const finalTotal = afterDiscount * (1 - extraDiscount / 100)
+    // Round to 2 decimal places to avoid floating point precision issues
+    return Math.round(finalTotal * 100) / 100
   }
 
   const calculateBillTotal = (items) => {
-    return items.reduce((sum, item) => {
+    const total = items.reduce((sum, item) => {
       if (!item.isBonus) {
-        return sum + item.total
+        return sum + (item.total || 0)
       }
       return sum
     }, 0)
+    // Round to 2 decimal places to avoid floating point precision issues
+    return Math.round(total * 100) / 100
   }
 
   const addItem = () => {
@@ -405,33 +409,15 @@ function ViewBill() {
 
   // Helper function to generate PDF bytes
   const generatePdfBytes = async () => {
-    // Get client details
-    const client = clients.find((c) => c._id === bill.clientId) || {
-      clientName: bill.clientName,
-      clientAddress: "N/A",
-      clientNumber: "N/A",
-      isFiler: false,
-      ntnNumber: "",
-    }
-
-    // Get field officer details
-    const fieldOfficer = fieldOfficers.find((o) => o._id === bill.fieldOfficerId) || {
-      name: bill.fieldOfficerName || "N/A",
-      phoneNumber: "N/A",
-    }
-
-    // Get salesman details
-    const salesman = salesmen.find((s) => s._id === bill.salesmanId) || {
-      name: bill.salesmanName || "N/A",
-      phoneNumber: "N/A",
-    }
-
-    // Get company info
+    // Fetch required data
+    const client = await window.api.getClient(bill.clientId)
+    const fieldOfficer = await window.api.getFieldOfficer(bill.fieldOfficerId)
+    const salesman = await window.api.getSalesman(bill.salesmanId)
     const companyInfo = await window.api.getCompanyInfo()
 
-    // Generate PDF
+    // Pass showDiscountAsAmount and products to PdfGenerator
     const pdfGenerator = new PdfGenerator()
-    return await pdfGenerator.generateInvoicePdf(bill, client, companyInfo, fieldOfficer, salesman)
+    return await pdfGenerator.generateInvoicePdf(bill, client, companyInfo, fieldOfficer, salesman, showDiscountAsAmount, products)
   }
 
   // Download PDF
@@ -471,6 +457,31 @@ function ViewBill() {
     } catch (error) {
       console.error("Error printing PDF:", error)
       toast.error("Failed to print PDF")
+    }
+  }
+
+  const deleteBill = async () => {
+    if (!window.confirm("Are you sure you want to delete this bill? This action cannot be undone and will restore product quantities.")) {
+      return
+    }
+
+    try {
+      await window.api.deleteBill(bill._id)
+      toast.success("Bill deleted successfully")
+      // Navigate back to bills list
+      const sourcePage = localStorage.getItem("billSourcePage") || "bills"
+      localStorage.removeItem("billSourcePage")
+      
+      if (sourcePage === "dashboard") {
+        window.location.hash = "#/"
+      } else if (sourcePage === "reports") {
+        window.location.hash = "#/reports"
+      } else {
+        window.location.hash = "#/bills"
+      }
+    } catch (error) {
+      console.error("Error deleting bill:", error)
+      toast.error("Failed to delete bill")
     }
   }
 
@@ -638,7 +649,51 @@ function ViewBill() {
     }
   }, [])
 
-  // Add this useEffect to initialize product indices when search terms change
+  // Add scroll-into-view effects for keyboard navigation
+  useEffect(() => {
+    if (selectedClientIndex >= 0 && clientSearchRef.current) {
+      const dropdownContainer = clientSearchRef.current.parentElement?.querySelector('.client-dropdown-container')
+      const selectedElement = dropdownContainer?.children[selectedClientIndex]
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }
+    }
+  }, [selectedClientIndex])
+
+  useEffect(() => {
+    if (selectedFieldOfficerIndex >= 0 && fieldOfficerSearchRef.current) {
+      const dropdownContainer = fieldOfficerSearchRef.current.parentElement?.querySelector('.field-officer-dropdown-container')
+      const selectedElement = dropdownContainer?.children[selectedFieldOfficerIndex]
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }
+    }
+  }, [selectedFieldOfficerIndex])
+
+  useEffect(() => {
+    if (selectedSalesmanIndex >= 0 && salesmanSearchRef.current) {
+      const dropdownContainer = salesmanSearchRef.current.parentElement?.querySelector('.salesman-dropdown-container')
+      const selectedElement = dropdownContainer?.children[selectedSalesmanIndex]
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }
+    }
+  }, [selectedSalesmanIndex])
+
+  useEffect(() => {
+    Object.keys(selectedProductIndex).forEach((index) => {
+      const currentIndex = selectedProductIndex[index]
+      if (currentIndex >= 0 && productSearchRefs.current[index]) {
+        const dropdownContainer = productSearchRefs.current[index].parentElement?.querySelector('.product-dropdown-container')
+        const selectedElement = dropdownContainer?.children[currentIndex]
+        if (selectedElement) {
+          selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+        }
+      }
+    })
+  }, [selectedProductIndex])
+
+  // Add this useEffect to initialize the selected product index when search terms change
   // Add this after the other useEffect hooks:
 
   // Add this useEffect to initialize the selected product index when search terms change
@@ -769,6 +824,12 @@ function ViewBill() {
               >
                 Print PDF
               </button>
+              <button
+                onClick={deleteBill}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md"
+              >
+                Delete Bill
+              </button>
             </>
           )}
         </div>
@@ -790,7 +851,7 @@ function ViewBill() {
                   ref={clientSearchRef}
                 />
                 {clientSearchTerm && filteredClients.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto client-dropdown-container">
                     {filteredClients.map((client, index) => (
                       <div
                         key={client._id}
@@ -870,7 +931,7 @@ function ViewBill() {
                   ref={fieldOfficerSearchRef}
                 />
                 {fieldOfficerSearchTerm && filteredFieldOfficers.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto field-officer-dropdown-container">
                     {filteredFieldOfficers.map((officer, index) => (
                       <div
                         key={officer._id}
@@ -919,7 +980,7 @@ function ViewBill() {
                   ref={salesmanSearchRef}
                 />
                 {salesmanSearchTerm && filteredSalesmen.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto salesman-dropdown-container">
                     {filteredSalesmen.map((salesman, index) => (
                       <div
                         key={salesman._id}
@@ -1002,7 +1063,7 @@ function ViewBill() {
                         />
                         {productSearchTerms[index] && getFilteredProducts(index).length > 0 && (
                           <div
-                            className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-80 overflow-auto"
+                            className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-80 overflow-auto product-dropdown-container"
                             ref={(el) => (productDropdownRefs.current[index] = el)}
                           >
                             {getFilteredProducts(index).map((product, productIndex) => (

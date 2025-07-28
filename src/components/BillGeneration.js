@@ -28,6 +28,8 @@ function BillGeneration() {
     _id: generateUniqueId(),
     productId: "",
     productName: "",
+    companyName: "",
+    containerSize: "",
     quantity: 1,
     rate: 0,
     discount: 0,
@@ -256,10 +258,12 @@ function BillGeneration() {
       ...currentItem,
       productId,
       productName: product.productName,
+      companyName: product.companyName || "",
+      containerSize: product.containerSize || "",
       rate,
       discount,
       extraDiscount,
-      total: calculateItemTotal(1, rate, discount, extraDiscount),
+      total: calculateItemTotal(currentItem.quantity, rate, discount, extraDiscount),
       availableQuantity: product.hasInfiniteQuantity !== false ? Number.POSITIVE_INFINITY : product.quantity,
       hasInfiniteQuantity: product.hasInfiniteQuantity !== false,
     })
@@ -346,17 +350,20 @@ function BillGeneration() {
     // First apply percentage discount
     const afterDiscount = quantity * rate * (1 - discount / 100)
     // Then apply extra discount (as percentage) on the result
-    return afterDiscount * (1 - extraDiscount / 100)
+    const finalTotal = afterDiscount * (1 - extraDiscount / 100)
+    // Round to 2 decimal places to avoid floating point precision issues
+    return Math.round(finalTotal * 100) / 100
   }
 
   const calculateBillTotal = () => {
     const total = billItems.reduce((sum, item) => {
       if (!item.isBonus) {
-        return sum + item.total
+        return sum + (item.total || 0)
       }
       return sum
     }, 0)
-    setBillTotal(total)
+    // Round to 2 decimal places to avoid floating point precision issues
+    setBillTotal(Math.round(total * 100) / 100)
   }
 
   const addCurrentItemToBill = () => {
@@ -374,6 +381,8 @@ function BillGeneration() {
       _id: generateUniqueId(),
       productId: "",
       productName: "",
+      companyName: "",
+      containerSize: "",
       quantity: 1,
       rate: 0,
       discount: 0,
@@ -419,6 +428,8 @@ function BillGeneration() {
         _id: generateUniqueId(),
         productId: "",
         productName: "",
+        companyName: "",
+        containerSize: "",
         quantity: 1,
         rate: 0,
         discount: 0,
@@ -459,6 +470,11 @@ function BillGeneration() {
     const updatedDropdowns = { ...showBonusProductDropdowns }
     delete updatedDropdowns[key]
     setShowBonusProductDropdowns(updatedDropdowns)
+
+    // Also update selected index
+    const updatedSelectedIndex = { ...selectedBonusProductIndex }
+    delete updatedSelectedIndex[key]
+    setSelectedBonusProductIndex(updatedSelectedIndex)
   }
 
   const handleBonusProductSelect = async (bonusIndex, productId) => {
@@ -470,6 +486,8 @@ function BillGeneration() {
       ...updatedBonusItems[bonusIndex],
       productId,
       productName: product.productName,
+      companyName: product.companyName || "",
+      containerSize: product.containerSize || "",
       rate: product.productPrice,
       availableQuantity: product.hasInfiniteQuantity !== false ? Number.POSITIVE_INFINITY : product.quantity,
       hasInfiniteQuantity: product.hasInfiniteQuantity !== false,
@@ -494,6 +512,10 @@ function BillGeneration() {
     setShowBonusProductDropdowns((prev) => ({
       ...prev,
       [key]: false,
+    }))
+    setSelectedBonusProductIndex((prev) => ({
+      ...prev,
+      [key]: -1,
     }))
 
     // Focus on quantity input after selecting a product
@@ -529,6 +551,17 @@ function BillGeneration() {
         ...prev,
         [key]: true,
       }))
+      // Initialize selected index to 0 when starting to type
+      setSelectedBonusProductIndex((prev) => ({
+        ...prev,
+        [key]: 0,
+      }))
+    } else {
+      // Hide dropdown when search term is empty
+      setShowBonusProductDropdowns((prev) => ({
+        ...prev,
+        [key]: false,
+      }))
       setSelectedBonusProductIndex((prev) => ({
         ...prev,
         [key]: -1,
@@ -560,6 +593,8 @@ function BillGeneration() {
       ...currentItem,
       productId: "",
       productName: "",
+      companyName: "",
+      containerSize: "",
       rate: 0,
       discount: 0,
       extraDiscount: 0,
@@ -579,6 +614,8 @@ function BillGeneration() {
       ...updatedBonusItems[bonusIndex],
       productId: "",
       productName: "",
+      companyName: "",
+      containerSize: "",
       rate: 0,
       discount: 0,
       total: 0,
@@ -596,6 +633,10 @@ function BillGeneration() {
     setBonusProductSearchTerms((prev) => ({
       ...prev,
       [key]: "",
+    }))
+    setSelectedBonusProductIndex((prev) => ({
+      ...prev,
+      [key]: -1,
     }))
   }
 
@@ -640,29 +681,45 @@ function BillGeneration() {
     // Arrow down
     if (e.key === "ArrowDown") {
       e.preventDefault()
-      setSelectedBonusProductIndex((prev) => ({
+      setSelectedBonusProductIndex((prev) => {
+        const currentIndex = prev[key] !== undefined ? prev[key] : -1
+        return {
         ...prev,
-        [key]: Math.min((prev[key] || -1) + 1, filtered.length - 1),
-      }))
+          [key]: Math.min(currentIndex + 1, filtered.length - 1),
+        }
+      })
     }
     // Arrow up
     else if (e.key === "ArrowUp") {
       e.preventDefault()
-      setSelectedBonusProductIndex((prev) => ({
+      setSelectedBonusProductIndex((prev) => {
+        const currentIndex = prev[key] !== undefined ? prev[key] : 0
+        return {
         ...prev,
-        [key]: Math.max((prev[key] || 0) - 1, 0),
-      }))
+          [key]: Math.max(currentIndex - 1, 0),
+        }
+      })
     }
     // Enter
-    else if (e.key === "Enter" && (selectedBonusProductIndex[key] || 0) >= 0) {
+    else if (e.key === "Enter") {
       e.preventDefault()
-      const selectedProduct = filtered[selectedBonusProductIndex[key] || 0]
+      const currentIndex = selectedBonusProductIndex[key]
+      if (currentIndex !== undefined && currentIndex >= 0 && currentIndex < filtered.length) {
+        const selectedProduct = filtered[currentIndex]
       if (selectedProduct) {
         handleBonusProductSelect(bonusIndex, selectedProduct._id)
+        }
+      } else if (filtered.length > 0) {
+        // If no item is selected but there are items in the dropdown, select the first one
+        const selectedProduct = filtered[0]
+        if (selectedProduct) {
+          handleBonusProductSelect(bonusIndex, selectedProduct._id)
+        }
       }
     }
     // Escape
     else if (e.key === "Escape") {
+      e.preventDefault()
       setShowBonusProductDropdowns((prev) => ({
         ...prev,
         [key]: false,
@@ -710,6 +767,75 @@ function BillGeneration() {
   const [selectedClientIndex, setSelectedClientIndex] = useState(-1)
   const [selectedFieldOfficerIndex, setSelectedFieldOfficerIndex] = useState(-1)
   const [selectedSalesmanIndex, setSelectedSalesmanIndex] = useState(-1)
+
+  // Add scroll-into-view effects for keyboard navigation
+  useEffect(() => {
+    if (selectedClientIndex >= 0 && clientSearchRef.current) {
+      const dropdownContainer = clientSearchRef.current.parentElement?.querySelector('.client-dropdown-container')
+      const selectedElement = dropdownContainer?.children[selectedClientIndex]
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }
+    }
+  }, [selectedClientIndex])
+
+  useEffect(() => {
+    if (selectedFieldOfficerIndex >= 0 && fieldOfficerSearchRef.current) {
+      const dropdownContainer = fieldOfficerSearchRef.current.parentElement?.querySelector('.field-officer-dropdown-container')
+      const selectedElement = dropdownContainer?.children[selectedFieldOfficerIndex]
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }
+    }
+  }, [selectedFieldOfficerIndex])
+
+  useEffect(() => {
+    if (selectedSalesmanIndex >= 0 && salesmanSearchRef.current) {
+      const dropdownContainer = salesmanSearchRef.current.parentElement?.querySelector('.salesman-dropdown-container')
+      const selectedElement = dropdownContainer?.children[selectedSalesmanIndex]
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }
+    }
+  }, [selectedSalesmanIndex])
+
+  // Add scroll-into-view effect for product dropdown
+  useEffect(() => {
+    if (selectedProductIndex >= 0 && productDropdownRef.current) {
+      const selectedElement = productDropdownRef.current.children[selectedProductIndex]
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }
+    }
+  }, [selectedProductIndex])
+
+  // Add scroll-into-view effect for bonus product dropdowns
+  useEffect(() => {
+    Object.keys(selectedBonusProductIndex).forEach((bonusKey) => {
+      const currentIndex = selectedBonusProductIndex[bonusKey]
+      if (currentIndex >= 0 && bonusProductDropdownRefs.current[bonusKey]) {
+        const selectedElement = bonusProductDropdownRefs.current[bonusKey].children[currentIndex]
+        if (selectedElement) {
+          selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+        }
+      }
+    })
+  }, [selectedBonusProductIndex])
+
+  // Initialize selected bonus product index when search terms change
+  useEffect(() => {
+    // When a bonus product search term is added, initialize its selected index to 0 (first item)
+    Object.keys(bonusProductSearchTerms).forEach((bonusKey) => {
+      if (bonusProductSearchTerms[bonusKey] && filteredProducts(bonusProductSearchTerms[bonusKey]).length > 0) {
+        if (selectedBonusProductIndex[bonusKey] === undefined) {
+          setSelectedBonusProductIndex((prev) => ({
+            ...prev,
+            [bonusKey]: 0,
+          }))
+        }
+      }
+    })
+  }, [bonusProductSearchTerms])
 
   const handleFieldOfficerKeyDown = (e) => {
     const filtered = fieldOfficers.filter(
@@ -981,7 +1107,7 @@ function BillGeneration() {
             />
             {clientSearchTerm && filteredClients.length > 0 && (
               <div
-                className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto"
+                className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto client-dropdown-container"
                 ref={clientDropdownRef}
               >
                 {filteredClients.map((client, index) => (
@@ -994,6 +1120,7 @@ function BillGeneration() {
                   >
                     <div className="font-medium">{client.clientName}</div>
                     <div className="text-sm">{client.clientNumber}</div>
+                    <div className="text-sm">{client.clientAddress}</div>
                   </div>
                 ))}
               </div>
@@ -1039,7 +1166,7 @@ function BillGeneration() {
             />
             {fieldOfficerSearchTerm && filteredFieldOfficers.length > 0 && (
               <div
-                className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto"
+                className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto field-officer-dropdown-container"
                 ref={fieldOfficerDropdownRef}
               >
                 {filteredFieldOfficers.map((officer, index) => (
@@ -1078,7 +1205,7 @@ function BillGeneration() {
             />
             {salesmanSearchTerm && filteredSalesmen.length > 0 && (
               <div
-                className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto"
+                className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto salesman-dropdown-container"
                 ref={salesmanDropdownRef}
               >
                 {filteredSalesmen.map((salesman, index) => (
@@ -1147,7 +1274,7 @@ function BillGeneration() {
 
                 {showProductDropdown && productSearchTerm && filteredProducts(productSearchTerm).length > 0 && (
                   <div
-                    className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto"
+                    className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto product-dropdown-container"
                     ref={productDropdownRef}
                   >
                     {filteredProducts(productSearchTerm).map((product, productIndex) => (
@@ -1178,6 +1305,13 @@ function BillGeneration() {
                 {currentItem.productId && (
                   <div className="mt-1 p-2 bg-gray-50 rounded-md">
                     <div className="font-medium">{currentItem.productName}</div>
+                    {(currentItem.companyName || currentItem.containerSize) && (
+                      <div className="text-xs text-gray-600 mt-0.5">
+                        {currentItem.companyName && <span>{currentItem.companyName}</span>}
+                        {currentItem.companyName && currentItem.containerSize && <span> - </span>}
+                        {currentItem.containerSize && <span>{currentItem.containerSize}</span>}
+                      </div>
+                    )}
                     <div className="text-sm text-gray-500">
                       PKR {currentItem.rate.toFixed(2)}
                       {currentItem.hasInfiniteQuantity === false && ` - ${currentItem.availableQuantity} available`}
@@ -1306,7 +1440,7 @@ function BillGeneration() {
                         bonusProductSearchTerms[bonusKey] &&
                         filteredProducts(bonusProductSearchTerms[bonusKey]).length > 0 && (
                           <div
-                            className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto"
+                            className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto bonus-product-dropdown-container"
                             ref={(el) => (bonusProductDropdownRefs.current[bonusKey] = el)}
                           >
                             {filteredProducts(bonusProductSearchTerms[bonusKey]).map((product, productIndex) => (
@@ -1337,6 +1471,13 @@ function BillGeneration() {
                       {bonusItem.productId && (
                         <div className="mt-1 p-2 bg-gray-50 rounded-md">
                           <div className="font-medium">{bonusItem.productName}</div>
+                          {(bonusItem.companyName || bonusItem.containerSize) && (
+                            <div className="text-xs text-gray-600 mt-0.5">
+                              {bonusItem.companyName && <span>{bonusItem.companyName}</span>}
+                              {bonusItem.companyName && bonusItem.containerSize && <span> - </span>}
+                              {bonusItem.containerSize && <span>{bonusItem.containerSize}</span>}
+                            </div>
+                          )}
                           <div className="text-sm text-gray-500">
                             PKR {bonusItem.rate.toFixed(2)}
                             {bonusItem.hasInfiniteQuantity === false && ` - ${bonusItem.availableQuantity} available`}
@@ -1477,7 +1618,14 @@ function BillGeneration() {
                     <>
                       <tr key={item.id} className={item.isBonus ? "bg-green-50" : ""}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {item.productName}
+                          <div>{item.productName}</div>
+                          {(item.companyName || item.containerSize) && (
+                            <div className="text-xs text-gray-600 mt-0.5">
+                              {item.companyName && <span>{item.companyName}</span>}
+                              {item.companyName && item.containerSize && <span> - </span>}
+                              {item.containerSize && <span>{item.containerSize}</span>}
+                            </div>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.quantity}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -1506,10 +1654,19 @@ function BillGeneration() {
                         item.bonusItems.map((bonusItem, bonusIndex) => (
                           <tr key={`${item.id}-bonus-${bonusIndex}`} className="bg-green-50">
                             <td className="px-6 py-4 pl-10 whitespace-nowrap text-sm font-medium text-gray-900">
-                              <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 mr-2">
-                                BONUS
-                              </span>
-                              {bonusItem.productName}
+                              <div>
+                                <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 mr-2">
+                                  BONUS
+                                </span>
+                                {bonusItem.productName}
+                              </div>
+                              {(bonusItem.companyName || bonusItem.containerSize) && (
+                                <div className="text-xs text-gray-600 mt-0.5 ml-16">
+                                  {bonusItem.companyName && <span>{bonusItem.companyName}</span>}
+                                  {bonusItem.companyName && bonusItem.containerSize && <span> - </span>}
+                                  {bonusItem.containerSize && <span>{bonusItem.containerSize}</span>}
+                                </div>
+                              )}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{bonusItem.quantity}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
