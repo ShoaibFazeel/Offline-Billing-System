@@ -645,7 +645,51 @@ function ViewBill() {
     }
   }, [])
 
-  // Add this useEffect to initialize product indices when search terms change
+  // Add scroll-into-view effects for keyboard navigation
+  useEffect(() => {
+    if (selectedClientIndex >= 0 && clientSearchRef.current) {
+      const dropdownContainer = clientSearchRef.current.parentElement?.querySelector('.client-dropdown-container')
+      const selectedElement = dropdownContainer?.children[selectedClientIndex]
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }
+    }
+  }, [selectedClientIndex])
+
+  useEffect(() => {
+    if (selectedFieldOfficerIndex >= 0 && fieldOfficerSearchRef.current) {
+      const dropdownContainer = fieldOfficerSearchRef.current.parentElement?.querySelector('.field-officer-dropdown-container')
+      const selectedElement = dropdownContainer?.children[selectedFieldOfficerIndex]
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }
+    }
+  }, [selectedFieldOfficerIndex])
+
+  useEffect(() => {
+    if (selectedSalesmanIndex >= 0 && salesmanSearchRef.current) {
+      const dropdownContainer = salesmanSearchRef.current.parentElement?.querySelector('.salesman-dropdown-container')
+      const selectedElement = dropdownContainer?.children[selectedSalesmanIndex]
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }
+    }
+  }, [selectedSalesmanIndex])
+
+  useEffect(() => {
+    Object.keys(selectedProductIndex).forEach((index) => {
+      const currentIndex = selectedProductIndex[index]
+      if (currentIndex >= 0 && productSearchRefs.current[index]) {
+        const dropdownContainer = productSearchRefs.current[index].parentElement?.querySelector('.product-dropdown-container')
+        const selectedElement = dropdownContainer?.children[currentIndex]
+        if (selectedElement) {
+          selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+        }
+      }
+    })
+  }, [selectedProductIndex])
+
+  // Add this useEffect to initialize the selected product index when search terms change
   // Add this after the other useEffect hooks:
 
   // Add this useEffect to initialize the selected product index when search terms change
@@ -803,7 +847,7 @@ function ViewBill() {
                   ref={clientSearchRef}
                 />
                 {clientSearchTerm && filteredClients.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto client-dropdown-container">
                     {filteredClients.map((client, index) => (
                       <div
                         key={client._id}
@@ -883,7 +927,7 @@ function ViewBill() {
                   ref={fieldOfficerSearchRef}
                 />
                 {fieldOfficerSearchTerm && filteredFieldOfficers.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto field-officer-dropdown-container">
                     {filteredFieldOfficers.map((officer, index) => (
                       <div
                         key={officer._id}
@@ -932,7 +976,7 @@ function ViewBill() {
                   ref={salesmanSearchRef}
                 />
                 {salesmanSearchTerm && filteredSalesmen.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto salesman-dropdown-container">
                     {filteredSalesmen.map((salesman, index) => (
                       <div
                         key={salesman._id}
@@ -1015,7 +1059,7 @@ function ViewBill() {
                         />
                         {productSearchTerms[index] && getFilteredProducts(index).length > 0 && (
                           <div
-                            className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-80 overflow-auto"
+                            className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-80 overflow-auto product-dropdown-container"
                             ref={(el) => (productDropdownRefs.current[index] = el)}
                           >
                             {getFilteredProducts(index).map((product, productIndex) => (

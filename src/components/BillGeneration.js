@@ -459,6 +459,11 @@ function BillGeneration() {
     const updatedDropdowns = { ...showBonusProductDropdowns }
     delete updatedDropdowns[key]
     setShowBonusProductDropdowns(updatedDropdowns)
+
+    // Also update selected index
+    const updatedSelectedIndex = { ...selectedBonusProductIndex }
+    delete updatedSelectedIndex[key]
+    setSelectedBonusProductIndex(updatedSelectedIndex)
   }
 
   const handleBonusProductSelect = async (bonusIndex, productId) => {
@@ -495,6 +500,10 @@ function BillGeneration() {
       ...prev,
       [key]: false,
     }))
+    setSelectedBonusProductIndex((prev) => ({
+      ...prev,
+      [key]: -1,
+    }))
 
     // Focus on quantity input after selecting a product
     setTimeout(() => {
@@ -528,6 +537,17 @@ function BillGeneration() {
       setShowBonusProductDropdowns((prev) => ({
         ...prev,
         [key]: true,
+      }))
+      // Initialize selected index to 0 when starting to type
+      setSelectedBonusProductIndex((prev) => ({
+        ...prev,
+        [key]: 0,
+      }))
+    } else {
+      // Hide dropdown when search term is empty
+      setShowBonusProductDropdowns((prev) => ({
+        ...prev,
+        [key]: false,
       }))
       setSelectedBonusProductIndex((prev) => ({
         ...prev,
@@ -597,6 +617,10 @@ function BillGeneration() {
       ...prev,
       [key]: "",
     }))
+    setSelectedBonusProductIndex((prev) => ({
+      ...prev,
+      [key]: -1,
+    }))
   }
 
   const filteredProducts = (searchTerm) => {
@@ -640,29 +664,45 @@ function BillGeneration() {
     // Arrow down
     if (e.key === "ArrowDown") {
       e.preventDefault()
-      setSelectedBonusProductIndex((prev) => ({
-        ...prev,
-        [key]: Math.min((prev[key] || -1) + 1, filtered.length - 1),
-      }))
+      setSelectedBonusProductIndex((prev) => {
+        const currentIndex = prev[key] !== undefined ? prev[key] : -1
+        return {
+          ...prev,
+          [key]: Math.min(currentIndex + 1, filtered.length - 1),
+        }
+      })
     }
     // Arrow up
     else if (e.key === "ArrowUp") {
       e.preventDefault()
-      setSelectedBonusProductIndex((prev) => ({
-        ...prev,
-        [key]: Math.max((prev[key] || 0) - 1, 0),
-      }))
+      setSelectedBonusProductIndex((prev) => {
+        const currentIndex = prev[key] !== undefined ? prev[key] : 0
+        return {
+          ...prev,
+          [key]: Math.max(currentIndex - 1, 0),
+        }
+      })
     }
     // Enter
-    else if (e.key === "Enter" && (selectedBonusProductIndex[key] || 0) >= 0) {
+    else if (e.key === "Enter") {
       e.preventDefault()
-      const selectedProduct = filtered[selectedBonusProductIndex[key] || 0]
-      if (selectedProduct) {
-        handleBonusProductSelect(bonusIndex, selectedProduct._id)
+      const currentIndex = selectedBonusProductIndex[key]
+      if (currentIndex !== undefined && currentIndex >= 0 && currentIndex < filtered.length) {
+        const selectedProduct = filtered[currentIndex]
+        if (selectedProduct) {
+          handleBonusProductSelect(bonusIndex, selectedProduct._id)
+        }
+      } else if (filtered.length > 0) {
+        // If no item is selected but there are items in the dropdown, select the first one
+        const selectedProduct = filtered[0]
+        if (selectedProduct) {
+          handleBonusProductSelect(bonusIndex, selectedProduct._id)
+        }
       }
     }
     // Escape
     else if (e.key === "Escape") {
+      e.preventDefault()
       setShowBonusProductDropdowns((prev) => ({
         ...prev,
         [key]: false,
@@ -710,6 +750,75 @@ function BillGeneration() {
   const [selectedClientIndex, setSelectedClientIndex] = useState(-1)
   const [selectedFieldOfficerIndex, setSelectedFieldOfficerIndex] = useState(-1)
   const [selectedSalesmanIndex, setSelectedSalesmanIndex] = useState(-1)
+
+  // Add scroll-into-view effects for keyboard navigation
+  useEffect(() => {
+    if (selectedClientIndex >= 0 && clientSearchRef.current) {
+      const dropdownContainer = clientSearchRef.current.parentElement?.querySelector('.client-dropdown-container')
+      const selectedElement = dropdownContainer?.children[selectedClientIndex]
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }
+    }
+  }, [selectedClientIndex])
+
+  useEffect(() => {
+    if (selectedFieldOfficerIndex >= 0 && fieldOfficerSearchRef.current) {
+      const dropdownContainer = fieldOfficerSearchRef.current.parentElement?.querySelector('.field-officer-dropdown-container')
+      const selectedElement = dropdownContainer?.children[selectedFieldOfficerIndex]
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }
+    }
+  }, [selectedFieldOfficerIndex])
+
+  useEffect(() => {
+    if (selectedSalesmanIndex >= 0 && salesmanSearchRef.current) {
+      const dropdownContainer = salesmanSearchRef.current.parentElement?.querySelector('.salesman-dropdown-container')
+      const selectedElement = dropdownContainer?.children[selectedSalesmanIndex]
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }
+    }
+  }, [selectedSalesmanIndex])
+
+  // Add scroll-into-view effect for product dropdown
+  useEffect(() => {
+    if (selectedProductIndex >= 0 && productDropdownRef.current) {
+      const selectedElement = productDropdownRef.current.children[selectedProductIndex]
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+      }
+    }
+  }, [selectedProductIndex])
+
+  // Add scroll-into-view effect for bonus product dropdowns
+  useEffect(() => {
+    Object.keys(selectedBonusProductIndex).forEach((bonusKey) => {
+      const currentIndex = selectedBonusProductIndex[bonusKey]
+      if (currentIndex >= 0 && bonusProductDropdownRefs.current[bonusKey]) {
+        const selectedElement = bonusProductDropdownRefs.current[bonusKey].children[currentIndex]
+        if (selectedElement) {
+          selectedElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+        }
+      }
+    })
+  }, [selectedBonusProductIndex])
+
+  // Initialize selected bonus product index when search terms change
+  useEffect(() => {
+    // When a bonus product search term is added, initialize its selected index to 0 (first item)
+    Object.keys(bonusProductSearchTerms).forEach((bonusKey) => {
+      if (bonusProductSearchTerms[bonusKey] && filteredProducts(bonusProductSearchTerms[bonusKey]).length > 0) {
+        if (selectedBonusProductIndex[bonusKey] === undefined) {
+          setSelectedBonusProductIndex((prev) => ({
+            ...prev,
+            [bonusKey]: 0,
+          }))
+        }
+      }
+    })
+  }, [bonusProductSearchTerms])
 
   const handleFieldOfficerKeyDown = (e) => {
     const filtered = fieldOfficers.filter(
@@ -981,7 +1090,7 @@ function BillGeneration() {
             />
             {clientSearchTerm && filteredClients.length > 0 && (
               <div
-                className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto"
+                className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto client-dropdown-container"
                 ref={clientDropdownRef}
               >
                 {filteredClients.map((client, index) => (
@@ -1040,7 +1149,7 @@ function BillGeneration() {
             />
             {fieldOfficerSearchTerm && filteredFieldOfficers.length > 0 && (
               <div
-                className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto"
+                className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto field-officer-dropdown-container"
                 ref={fieldOfficerDropdownRef}
               >
                 {filteredFieldOfficers.map((officer, index) => (
@@ -1079,7 +1188,7 @@ function BillGeneration() {
             />
             {salesmanSearchTerm && filteredSalesmen.length > 0 && (
               <div
-                className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto"
+                className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto salesman-dropdown-container"
                 ref={salesmanDropdownRef}
               >
                 {filteredSalesmen.map((salesman, index) => (
@@ -1148,7 +1257,7 @@ function BillGeneration() {
 
                 {showProductDropdown && productSearchTerm && filteredProducts(productSearchTerm).length > 0 && (
                   <div
-                    className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto"
+                    className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto product-dropdown-container"
                     ref={productDropdownRef}
                   >
                     {filteredProducts(productSearchTerm).map((product, productIndex) => (
@@ -1307,7 +1416,7 @@ function BillGeneration() {
                         bonusProductSearchTerms[bonusKey] &&
                         filteredProducts(bonusProductSearchTerms[bonusKey]).length > 0 && (
                           <div
-                            className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto"
+                            className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto bonus-product-dropdown-container"
                             ref={(el) => (bonusProductDropdownRefs.current[bonusKey] = el)}
                           >
                             {filteredProducts(bonusProductSearchTerms[bonusKey]).map((product, productIndex) => (
