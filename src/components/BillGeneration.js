@@ -28,6 +28,8 @@ function BillGeneration() {
     _id: generateUniqueId(),
     productId: "",
     productName: "",
+    companyName: "",
+    containerSize: "",
     quantity: 1,
     rate: 0,
     discount: 0,
@@ -256,10 +258,12 @@ function BillGeneration() {
       ...currentItem,
       productId,
       productName: product.productName,
+      companyName: product.companyName || "",
+      containerSize: product.containerSize || "",
       rate,
       discount,
       extraDiscount,
-      total: calculateItemTotal(1, rate, discount, extraDiscount),
+      total: calculateItemTotal(currentItem.quantity, rate, discount, extraDiscount),
       availableQuantity: product.hasInfiniteQuantity !== false ? Number.POSITIVE_INFINITY : product.quantity,
       hasInfiniteQuantity: product.hasInfiniteQuantity !== false,
     })
@@ -374,6 +378,8 @@ function BillGeneration() {
       _id: generateUniqueId(),
       productId: "",
       productName: "",
+      companyName: "",
+      containerSize: "",
       quantity: 1,
       rate: 0,
       discount: 0,
@@ -419,6 +425,8 @@ function BillGeneration() {
         _id: generateUniqueId(),
         productId: "",
         productName: "",
+        companyName: "",
+        containerSize: "",
         quantity: 1,
         rate: 0,
         discount: 0,
@@ -470,6 +478,8 @@ function BillGeneration() {
       ...updatedBonusItems[bonusIndex],
       productId,
       productName: product.productName,
+      companyName: product.companyName || "",
+      containerSize: product.containerSize || "",
       rate: product.productPrice,
       availableQuantity: product.hasInfiniteQuantity !== false ? Number.POSITIVE_INFINITY : product.quantity,
       hasInfiniteQuantity: product.hasInfiniteQuantity !== false,
@@ -560,6 +570,8 @@ function BillGeneration() {
       ...currentItem,
       productId: "",
       productName: "",
+      companyName: "",
+      containerSize: "",
       rate: 0,
       discount: 0,
       extraDiscount: 0,
@@ -579,6 +591,8 @@ function BillGeneration() {
       ...updatedBonusItems[bonusIndex],
       productId: "",
       productName: "",
+      companyName: "",
+      containerSize: "",
       rate: 0,
       discount: 0,
       total: 0,
@@ -1178,6 +1192,13 @@ function BillGeneration() {
                 {currentItem.productId && (
                   <div className="mt-1 p-2 bg-gray-50 rounded-md">
                     <div className="font-medium">{currentItem.productName}</div>
+                    {(currentItem.companyName || currentItem.containerSize) && (
+                      <div className="text-xs text-gray-600 mt-0.5">
+                        {currentItem.companyName && <span>{currentItem.companyName}</span>}
+                        {currentItem.companyName && currentItem.containerSize && <span> - </span>}
+                        {currentItem.containerSize && <span>{currentItem.containerSize}</span>}
+                      </div>
+                    )}
                     <div className="text-sm text-gray-500">
                       PKR {currentItem.rate.toFixed(2)}
                       {currentItem.hasInfiniteQuantity === false && ` - ${currentItem.availableQuantity} available`}
@@ -1337,6 +1358,13 @@ function BillGeneration() {
                       {bonusItem.productId && (
                         <div className="mt-1 p-2 bg-gray-50 rounded-md">
                           <div className="font-medium">{bonusItem.productName}</div>
+                          {(bonusItem.companyName || bonusItem.containerSize) && (
+                            <div className="text-xs text-gray-600 mt-0.5">
+                              {bonusItem.companyName && <span>{bonusItem.companyName}</span>}
+                              {bonusItem.companyName && bonusItem.containerSize && <span> - </span>}
+                              {bonusItem.containerSize && <span>{bonusItem.containerSize}</span>}
+                            </div>
+                          )}
                           <div className="text-sm text-gray-500">
                             PKR {bonusItem.rate.toFixed(2)}
                             {bonusItem.hasInfiniteQuantity === false && ` - ${bonusItem.availableQuantity} available`}
@@ -1477,7 +1505,14 @@ function BillGeneration() {
                     <>
                       <tr key={item.id} className={item.isBonus ? "bg-green-50" : ""}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {item.productName}
+                          <div>{item.productName}</div>
+                          {(item.companyName || item.containerSize) && (
+                            <div className="text-xs text-gray-600 mt-0.5">
+                              {item.companyName && <span>{item.companyName}</span>}
+                              {item.companyName && item.containerSize && <span> - </span>}
+                              {item.containerSize && <span>{item.containerSize}</span>}
+                            </div>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.quantity}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -1506,10 +1541,19 @@ function BillGeneration() {
                         item.bonusItems.map((bonusItem, bonusIndex) => (
                           <tr key={`${item.id}-bonus-${bonusIndex}`} className="bg-green-50">
                             <td className="px-6 py-4 pl-10 whitespace-nowrap text-sm font-medium text-gray-900">
-                              <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 mr-2">
-                                BONUS
-                              </span>
-                              {bonusItem.productName}
+                              <div>
+                                <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 mr-2">
+                                  BONUS
+                                </span>
+                                {bonusItem.productName}
+                              </div>
+                              {(bonusItem.companyName || bonusItem.containerSize) && (
+                                <div className="text-xs text-gray-600 mt-0.5 ml-16">
+                                  {bonusItem.companyName && <span>{bonusItem.companyName}</span>}
+                                  {bonusItem.companyName && bonusItem.containerSize && <span> - </span>}
+                                  {bonusItem.containerSize && <span>{bonusItem.containerSize}</span>}
+                                </div>
+                              )}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{bonusItem.quantity}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
