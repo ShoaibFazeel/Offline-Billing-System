@@ -296,12 +296,118 @@ function Reports() {
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
     const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
     const margin = 40
-    const col = [left, left+80, left+200, left+320, left+420]
+    
+    // Improved column layout with better spacing to prevent overlapping
+    const tableWidth = right - left
+    const col = {
+      invoiceNo: { x: left, width: 70 },
+      partyName: { x: left + 75, width: 120 },
+      address: { x: left + 200, width: 140 },
+      amount: { x: left + 345, width: 80 },
+      profit: { x: left + 430, width: 80 }
+    }
+    
+    // Helper function to truncate text with ellipsis
+    const truncateText = (text, maxWidth, fontSize, fontObj) => {
+      if (!text) return ""
+      const textWidth = fontObj.widthOfTextAtSize(text, fontSize)
+      if (textWidth <= maxWidth) return text
+      
+      let truncated = text
+      while (fontObj.widthOfTextAtSize(truncated + "...", fontSize) > maxWidth && truncated.length > 0) {
+        truncated = truncated.slice(0, -1)
+      }
+      return truncated + "..."
+    }
+    
+    // Helper function to draw table row with background
+    const drawTableRow = (page, y, rowData, isHeader = false, isTotal = false, isAlternate = false) => {
+      const rowHeight = 16
+      const padding = 2
+      
+      // Draw background for alternating rows or totals
+      if (isAlternate && !isHeader && !isTotal) {
+        page.drawRectangle({
+          x: left - 2,
+          y: y - padding,
+          width: tableWidth + 4,
+          height: rowHeight,
+          color: rgb(0.98, 0.98, 0.98)
+        })
+      }
+      
+      if (isTotal) {
+        page.drawRectangle({
+          x: left - 2,
+          y: y - padding,
+          width: tableWidth + 4,
+          height: rowHeight,
+          color: rgb(0.95, 0.95, 0.95)
+        })
+      }
+      
+      // Draw horizontal line above row (except for first row)
+      if (!isHeader) {
+        page.drawLine({
+          start: { x: left, y: y + rowHeight/2 },
+          end: { x: right, y: y + rowHeight/2 },
+          thickness: 0.3,
+          color: rgb(0.8, 0.8, 0.8)
+        })
+      }
+      
+      const fontSize = isHeader ? 11 : 10
+      const fontWeight = (isHeader || isTotal) ? bold : font
+      
+      // Draw cell contents with proper alignment
+      if (rowData.invoiceNo !== undefined) {
+        page.drawText(
+          truncateText(String(rowData.invoiceNo), col.invoiceNo.width - 5, fontSize, fontWeight),
+          { x: col.invoiceNo.x + 2, y, size: fontSize, font: fontWeight }
+        )
+      }
+      
+      if (rowData.partyName !== undefined) {
+        page.drawText(
+          truncateText(String(rowData.partyName), col.partyName.width - 5, fontSize, fontWeight),
+          { x: col.partyName.x + 2, y, size: fontSize, font: fontWeight }
+        )
+      }
+      
+      if (rowData.address !== undefined) {
+        page.drawText(
+          truncateText(String(rowData.address), col.address.width - 5, fontSize, fontWeight),
+          { x: col.address.x + 2, y, size: fontSize, font: fontWeight }
+        )
+      }
+      
+      if (rowData.amount !== undefined) {
+        const amountText = String(rowData.amount)
+        const amountWidth = fontWeight.widthOfTextAtSize(amountText, fontSize)
+        page.drawText(
+          amountText,
+          { x: col.amount.x + col.amount.width - amountWidth - 2, y, size: fontSize, font: fontWeight }
+        )
+      }
+      
+      if (rowData.profit !== undefined) {
+        const profitText = String(rowData.profit)
+        const profitWidth = fontWeight.widthOfTextAtSize(profitText, fontSize)
+        page.drawText(
+          profitText,
+          { x: col.profit.x + col.profit.width - profitWidth - 2, y, size: fontSize, font: fontWeight }
+        )
+      }
+      
+      return y - rowHeight - 2
+    }
+    
     // --- Header ---
     const companyName = companyInfo.companyName || "Company Name"
     const companyAddress = companyInfo.companyAddress || "Address"
     const companyNameWidth = bold.widthOfTextAtSize(companyName, 16)
     const companyAddressWidth = font.widthOfTextAtSize(companyAddress, 10)
+    
     // Centered company name
     pdfDoc.addPage([pageWidth, pageHeight])
     let page = pdfDoc.getPages()[0]
@@ -312,6 +418,7 @@ function Reports() {
       font: bold,
       color: rgb(0, 0, 0),
     })
+    
     // Centered address
     page.drawText(companyAddress, {
       x: (pageWidth - companyAddressWidth) / 2,
@@ -320,78 +427,164 @@ function Reports() {
       font,
       color: rgb(0, 0, 0),
     })
+    
     // Report Date box (top right)
     const reportDateLabel = "Report Date"
     const reportDate = new Date().toLocaleDateString()
-    page.drawRectangle({ x: right - 40, y: y - 5, width: 90, height: 32, borderColor: rgb(0,0,0), borderWidth: 1, color: rgb(1,1,1) })
+    page.drawRectangle({ 
+      x: right - 40, y: y - 5, width: 90, height: 32, 
+      borderColor: rgb(0,0,0), borderWidth: 1, color: rgb(1,1,1) 
+    })
     page.drawText(reportDateLabel, { x: right - 35, y: y + 15, size: 10, font: bold, color: rgb(0,0,0) })
     page.drawText(reportDate, { x: right - 35, y: y, size: 10, font, color: rgb(0,0,0) })
     y -= 50
+    
     // Horizontal line
-    page.drawLine({ start: { x: left, y }, end: { x: right + 50, y }, thickness: 1, color: rgb(0,0,0) })
-    y -= 20
+    page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 1, color: rgb(0,0,0) })
+    y -= 25
+    
     // --- Report Title ---
     const reportTitle = "Daily Sale Report"
-    const reportTitleWidth = bold.widthOfTextAtSize(reportTitle, 14)
+    const reportTitleWidth = bold.widthOfTextAtSize(reportTitle, 16)
     page.drawText(reportTitle, {
       x: (pageWidth - reportTitleWidth) / 2,
       y,
-      size: 14,
+      size: 16,
       font: bold,
       color: rgb(0, 0, 0),
     })
-    y -= 30
+    y -= 35
+    
     // --- Grouped by Address (City/Area) ---
     const groups = groupedBills()
     let grandTotal = 0
+    let rowCounter = 0
+    
     for (const group of groups) {
-      // City/Area header
-      page.drawText(`City / Area: ${group.groupName}`, { x: left, y, size: 12, font: bold })
-      y -= 18
-      // Table header
-      page.drawText("Invoice No.", { x: col[0], y, size: 11, font: bold })
-      page.drawText("Party Name", { x: col[1], y, size: 11, font: bold })
-      page.drawText("Address", { x: col[2], y, size: 11, font: bold })
-      page.drawText("Amount", { x: col[3], y, size: 11, font: bold })
-      page.drawText("Profit", { x: col[4], y, size: 11, font: bold })
-      y -= 14
-      page.drawLine({ start: { x: left, y }, end: { x: right + 50, y }, thickness: 0.5, color: rgb(0,0,0) })
-      y -= 8
+      // City/Area header with improved styling
+      y -= 10
+      page.drawRectangle({
+        x: left - 5,
+        y: y - 5,
+        width: tableWidth + 10,
+        height: 22,
+        color: rgb(0.9, 0.9, 0.9)
+      })
+      
+      page.drawText(`City / Area: ${group.groupName}`, { 
+        x: left, y, size: 13, font: bold, color: rgb(0.2, 0.2, 0.2)
+      })
+      y -= 25
+      
+      // Table header with background
+      page.drawRectangle({
+        x: left - 2,
+        y: y - 2,
+        width: tableWidth + 4,
+        height: 18,
+        color: rgb(0.85, 0.85, 0.85)
+      })
+      
+      y = drawTableRow(page, y, {
+        invoiceNo: "Invoice No.",
+        partyName: "Party Name", 
+        address: "Address",
+        amount: "Amount",
+        profit: "Profit"
+      }, true)
+      
+      // Draw thick line under header
+      page.drawLine({ 
+        start: { x: left, y + 8 }, 
+        end: { x: right, y + 8 }, 
+        thickness: 1, 
+        color: rgb(0.5, 0.5, 0.5) 
+      })
+      y -= 5
+      
       let areaTotal = 0
+      rowCounter = 0
+      
       for (const bill of group.bills) {
-        page.drawText(String(bill.billId ? bill.billId : bill._id), { x: col[0], y, size: 10, font })
-        page.drawText(bill.clientName || getClientName(bill.clientId), { x: col[1], y, size: 10, font })
-        page.drawText(bill.clientAddress || getClientAddress(bill.clientId), { x: col[2], y, size: 10, font })
-        page.drawText(bill.totalAmount ? bill.totalAmount.toFixed(2) : "0.00", { x: col[3], y, size: 10, font })
-        page.drawText(calculateBillProfit(bill).toFixed(2), { x: col[4], y, size: 10, font })
+        const isAlternate = rowCounter % 2 === 1
+        
+        y = drawTableRow(page, y, {
+          invoiceNo: bill.billId ? bill.billId : bill._id,
+          partyName: bill.clientName || getClientName(bill.clientId),
+          address: bill.clientAddress || getClientAddress(bill.clientId),
+          amount: bill.totalAmount ? bill.totalAmount.toFixed(2) : "0.00",
+          profit: calculateBillProfit(bill).toFixed(2)
+        }, false, false, isAlternate)
+        
         areaTotal += bill.totalAmount || 0
-        y -= 14
+        rowCounter++
       }
-      // City/Area Total
-      y -= 2
-      page.drawText(`City / Area Total:`, { x: col[2], y, size: 11, font: bold })
-      page.drawText(areaTotal.toFixed(2), { x: col[3], y, size: 11, font: bold })
-      y -= 14
-      page.drawText(`City / Area Profit:`, { x: col[2], y, size: 11, font: bold })
-      page.drawText(group.totalProfit.toFixed(2), { x: col[4], y, size: 11, font: bold })
+      
+      // City/Area Total with background
+      y -= 8
+      y = drawTableRow(page, y, {
+        invoiceNo: "",
+        partyName: "",
+        address: "City / Area Total:",
+        amount: areaTotal.toFixed(2),
+        profit: ""
+      }, false, true)
+      
+      y = drawTableRow(page, y, {
+        invoiceNo: "",
+        partyName: "",
+        address: "City / Area Profit:",
+        amount: "",
+        profit: group.totalProfit.toFixed(2)
+      }, false, true)
+      
       grandTotal += areaTotal
-      y -= 18
-      // Horizontal line after group
-      page.drawLine({ start: { x: left, y }, end: { x: right + 50, y }, thickness: 0.5, color: rgb(0,0,0) })
-      y -= 18
+      y -= 15
+      
+      // Thick line after group
+      page.drawLine({ 
+        start: { x: left, y }, 
+        end: { x: right, y }, 
+        thickness: 1.5, 
+        color: rgb(0.3, 0.3, 0.3) 
+      })
+      y -= 20
+      
       // Page break if needed
-      if (y < 100) {
+      if (y < 120) {
         page = pdfDoc.addPage([pageWidth, pageHeight])
         y = 800
       }
     }
-    // --- Grand Total at the end ---
-    y -= 10
-    page.drawText("Total Amount:", { x: col[2], y, size: 12, font: bold })
-    page.drawText(grandTotal.toFixed(2), { x: col[3], y, size: 12, font: bold })
-    y -= 20
-    page.drawText("Total Profit:", { x: col[2], y, size: 12, font: bold })
-    page.drawText(calculateTotalProfit().toFixed(2), { x: col[4], y, size: 12, font: bold })
+    
+    // --- Grand Total at the end with enhanced styling ---
+    y -= 15
+    page.drawRectangle({
+      x: left - 5,
+      y: y - 10,
+      width: tableWidth + 10,
+      height: 50,
+      color: rgb(0.88, 0.88, 0.88),
+      borderColor: rgb(0.5, 0.5, 0.5),
+      borderWidth: 1
+    })
+    
+    y = drawTableRow(page, y, {
+      invoiceNo: "",
+      partyName: "",
+      address: "Total Amount:",
+      amount: grandTotal.toFixed(2),
+      profit: ""
+    }, false, true)
+    
+    y = drawTableRow(page, y, {
+      invoiceNo: "",
+      partyName: "",
+      address: "Total Profit:",
+      amount: "",
+      profit: calculateTotalProfit().toFixed(2)
+    }, false, true)
+    
     return await pdfDoc.save()
   }
 
