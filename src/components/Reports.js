@@ -353,7 +353,7 @@ function Reports() {
       page.drawText("Party Name", { x: col[1], y, size: 11, font: bold })
       page.drawText("Address", { x: col[2], y, size: 11, font: bold })
       page.drawText("Amount", { x: col[3], y, size: 11, font: bold })
-      page.drawText("Profit", { x: col[4], y, size: 11, font: bold })
+      // page.drawText("Profit", { x: col[4], y, size: 11, font: bold })
       y -= 14
       page.drawLine({ start: { x: left, y }, end: { x: right + 50, y }, thickness: 0.5, color: rgb(0,0,0) })
       y -= 8
@@ -363,7 +363,7 @@ function Reports() {
         page.drawText(bill.clientName || getClientName(bill.clientId), { x: col[1], y, size: 10, font })
         page.drawText(bill.clientAddress || getClientAddress(bill.clientId), { x: col[2], y, size: 10, font })
         page.drawText(bill.totalAmount ? bill.totalAmount.toFixed(2) : "0.00", { x: col[3], y, size: 10, font })
-        page.drawText(calculateBillProfit(bill).toFixed(2), { x: col[4], y, size: 10, font })
+        // page.drawText(calculateBillProfit(bill).toFixed(2), { x: col[4], y, size: 10, font })
         areaTotal += bill.totalAmount || 0
         y -= 14
       }
@@ -372,8 +372,8 @@ function Reports() {
       page.drawText(`City / Area Total:`, { x: col[2], y, size: 11, font: bold })
       page.drawText(areaTotal.toFixed(2), { x: col[3], y, size: 11, font: bold })
       y -= 14
-      page.drawText(`City / Area Profit:`, { x: col[2], y, size: 11, font: bold })
-      page.drawText(group.totalProfit.toFixed(2), { x: col[4], y, size: 11, font: bold })
+      // page.drawText(`City / Area Profit:`, { x: col[2], y, size: 11, font: bold })
+      // page.drawText(group.totalProfit.toFixed(2), { x: col[4], y, size: 11, font: bold })
       grandTotal += areaTotal
       y -= 18
       // Horizontal line after group
@@ -390,8 +390,8 @@ function Reports() {
     page.drawText("Total Amount:", { x: col[2], y, size: 12, font: bold })
     page.drawText(grandTotal.toFixed(2), { x: col[3], y, size: 12, font: bold })
     y -= 20
-    page.drawText("Total Profit:", { x: col[2], y, size: 12, font: bold })
-    page.drawText(calculateTotalProfit().toFixed(2), { x: col[4], y, size: 12, font: bold })
+    // page.drawText("Total Profit:", { x: col[2], y, size: 12, font: bold })
+    // page.drawText(calculateTotalProfit().toFixed(2), { x: col[4], y, size: 12, font: bold })
     return await pdfDoc.save()
   }
 
@@ -558,7 +558,7 @@ function Reports() {
                 <span>{group.groupName}</span>
                 <div className="text-right">
                   <div>Total: PKR {group.totalAmount.toFixed(2)}</div>
-                  <div className="text-sm text-green-600">Profit: PKR {group.totalProfit.toFixed(2)}</div>
+                  {/* <div className="text-sm text-green-600">Profit: PKR {group.totalProfit.toFixed(2)}</div> */}
                 </div>
               </h2>
 
@@ -578,9 +578,9 @@ function Reports() {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Amount
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      {/* <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Profit
-                      </th>
+                      </th> */}
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions
                       </th>
@@ -601,11 +601,11 @@ function Reports() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           PKR {bill.totalAmount ? bill.totalAmount.toFixed(2) : "0.00"}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {/* <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           <span className={calculateBillProfit(bill) >= 0 ? "text-green-600" : "text-red-600"}>
                             PKR {calculateBillProfit(bill).toFixed(2)}
                           </span>
-                        </td>
+                        </td> */}
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <a
                             href={`#/bill/${bill._id}`}
@@ -629,7 +629,7 @@ function Reports() {
           <div className="bg-white rounded-lg shadow p-4 mt-4">
             <div className="text-xl font-bold text-right">
               <div>Grand Total: PKR {calculateGrandTotal().toFixed(2)}</div>
-              <div className="text-lg text-green-600">Total Profit: PKR {calculateTotalProfit().toFixed(2)}</div>
+              {/* <div className="text-lg text-green-600">Total Profit: PKR {calculateTotalProfit().toFixed(2)}</div> */}
             </div>
           </div>
         </div>

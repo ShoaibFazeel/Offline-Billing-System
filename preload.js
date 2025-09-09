@@ -5,6 +5,7 @@ const { contextBridge, ipcRenderer } = require("electron")
 contextBridge.exposeInMainWorld("api", {
   // Products
   getProducts: () => ipcRenderer.invoke("get-products"),
+  deleteProduct: (id)=> ipcRenderer.invoke("delete-product", id),
   addProduct: (product) => ipcRenderer.invoke("add-product", product),
   updateProduct: (product) => ipcRenderer.invoke("update-product", product),
   importProducts: (products) => ipcRenderer.invoke("import-products", products),
@@ -12,6 +13,7 @@ contextBridge.exposeInMainWorld("api", {
 
   // Clients
   getClients: () => ipcRenderer.invoke("get-clients"),
+  deleteClient: (id) => ipcRenderer.invoke("delete-client", id),
   addClient: (client) => ipcRenderer.invoke("add-client", client),
   updateClient: (client) => ipcRenderer.invoke("update-client", client),
   importClients: (clients) => ipcRenderer.invoke("import-clients", clients),
