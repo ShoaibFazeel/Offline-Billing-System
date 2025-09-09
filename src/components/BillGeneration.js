@@ -1044,6 +1044,7 @@ function BillGeneration() {
     const bill = {
       clientId: selectedClient._id,
       clientName: selectedClient.clientName,
+      clientAddress: selectedClient.clientAddress,
       fieldOfficerId: selectedFieldOfficer._id,
       fieldOfficerName: selectedFieldOfficer.name,
       salesmanId: selectedSalesman._id,

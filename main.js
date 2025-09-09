@@ -149,6 +149,15 @@ ipcMain.handle("get-products", async () => {
   })
 })
 
+ipcMain.handle("delete-product", async (event, id) => {
+  return new Promise((resolve, reject) => {
+    db.products.remove({ _id: id }, {}, (err, numRemoved) => {
+      if (err) reject(err)
+      else resolve(numRemoved)
+    })
+  })
+})
+
 ipcMain.handle("add-product", async (event, product) => {
   return new Promise((resolve, reject) => {
     // Ensure hasInfiniteQuantity is set
@@ -243,6 +252,15 @@ ipcMain.handle("add-client", async (event, client) => {
     db.clients.insert(client, (err, newClient) => {
       if (err) reject(err)
       else resolve(newClient)
+    })
+  })
+})
+
+ipcMain.handle("delete-client", async (event, id) => {
+  return new Promise((resolve, reject) => {
+    db.clients.remove({ _id: id }, {}, (err, numRemoved) => {
+      if (err) reject(err)
+      else resolve(numRemoved)
     })
   })
 })

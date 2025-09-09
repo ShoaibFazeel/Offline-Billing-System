@@ -151,6 +151,21 @@ function ClientManagement() {
     setIsModalOpen(true)
   }
 
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this client? This action cannot be undone and will restore client.")) {
+      return
+    }
+
+    try {
+      await window.api.deleteClient(id);
+      toast.success("Client deleted successfully");
+      fetchClients() // Refresh the clients list
+    } catch (error) {
+      console.error("Error deleting client:", error)
+      toast.error("Failed to delete client")
+    }
+  }
+
   const filteredClients = clients.filter(
     (client) =>
       client.clientName.toLowerCase().includes(searchTerm.toLowerCase()) || client.clientNumber.includes(searchTerm),
@@ -159,7 +174,7 @@ function ClientManagement() {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Client Management</h1>
+        <h1 className="text-3xl font-bold">Client Management: ({filteredClients.length})</h1>
         <button
           onClick={() => {
             setCurrentClient({
@@ -227,8 +242,11 @@ function ClientManagement() {
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button onClick={() => handleEdit(client)} className="text-blue-600 hover:text-blue-900">
+                    <button onClick={() => handleEdit(client)} className="text-blue-600 hover:text-blue-900 mr-4">
                       Edit
+                    </button>
+                    <button onClick={() => handleDelete(client._id)} className="text-red-600 hover:text-red-900">
+                      Delete
                     </button>
                   </td>
                 </tr>

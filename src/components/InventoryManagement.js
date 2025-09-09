@@ -172,6 +172,21 @@ function InventoryManagement() {
     }
   }
 
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this product? This action cannot be undone and will restore product quantities.")) {
+      return
+    }
+
+    try {
+      await window.api.deleteProduct(id);
+      toast.success("Product deleted successfully");
+      fetchProducts() // Refresh the products list
+    } catch (error) {
+      console.error("Error deleting product:", error)
+      toast.error("Failed to delete product")
+    }
+  }
+
   const filteredProducts = products.filter((product) =>
     product.productName.toLowerCase().includes(searchTerm.toLowerCase()),
   )
@@ -179,7 +194,7 @@ function InventoryManagement() {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Inventory Management</h1>
+        <h1 className="text-3xl font-bold">Inventory Management: ({filteredProducts.length})</h1>
         <button
           onClick={() => {
             setCurrentProduct({
@@ -258,8 +273,11 @@ function InventoryManagement() {
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button onClick={() => handleEdit(product)} className="text-blue-600 hover:text-blue-900">
+                    <button onClick={() => handleEdit(product)} className="text-blue-600 hover:text-blue-900 mr-4">
                       Edit
+                    </button>
+                    <button onClick={() => handleDelete(product._id)} className="text-red-600 hover:text-red-900">
+                      Delete
                     </button>
                   </td>
                 </tr>

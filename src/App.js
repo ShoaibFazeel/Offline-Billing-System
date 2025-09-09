@@ -93,6 +93,7 @@ function NavLink({ to, icon, label, sidebarOpen }) {
   return (
     <Link
       to={to}
+      title={label}
       className="flex items-center py-2 px-4 text-gray-300 hover:bg-gray-700 hover:text-white rounded-md transition-colors"
     >
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
