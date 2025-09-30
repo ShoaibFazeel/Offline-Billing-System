@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import toast from "react-hot-toast"
+import { useDropdownData } from "../hooks/useLazyData"
+import dataService from "../services/DataService"
 
 // Helper function to generate a unique ID
 function generateUniqueId() {
@@ -11,10 +13,12 @@ function generateUniqueId() {
 
 function BillGeneration() {
   const navigate = useNavigate()
-  const [clients, setClients] = useState([])
-  const [products, setProducts] = useState([])
-  const [fieldOfficers, setFieldOfficers] = useState([])
-  const [salesmen, setSalesmen] = useState([])
+  
+  // Use the new data hooks for dropdown data
+  const { data: clients, loading: clientsLoading, refresh: refreshClients } = useDropdownData('clients')
+  const { data: products, loading: productsLoading, refresh: refreshProducts } = useDropdownData('products')
+  const { data: fieldOfficers, loading: fieldOfficersLoading, refresh: refreshFieldOfficers } = useDropdownData('fieldOfficers')
+  const { data: salesmen, loading: salesmenLoading, refresh: refreshSalesmen } = useDropdownData('salesmen')
   const [selectedClient, setSelectedClient] = useState(null)
   const [selectedFieldOfficer, setSelectedFieldOfficer] = useState(null)
   const [selectedSalesman, setSelectedSalesman] = useState(null)
@@ -66,16 +70,25 @@ function BillGeneration() {
   const bonusProductDropdownRefs = useRef({})
 
   useEffect(() => {
-    fetchClients()
-    fetchProducts()
-    fetchFieldOfficers()
-    fetchSalesmen()
-
     // Auto-focus client search on component mount
     if (clientSearchRef.current) {
       clientSearchRef.current.focus()
     }
-  }, [])
+
+    // Register refresh callbacks for cache invalidation
+    dataService.registerRefreshCallback('products', refreshProducts)
+    dataService.registerRefreshCallback('clients', refreshClients)
+    dataService.registerRefreshCallback('fieldOfficers', refreshFieldOfficers)
+    dataService.registerRefreshCallback('salesmen', refreshSalesmen)
+
+    // Cleanup on unmount
+    return () => {
+      dataService.unregisterRefreshCallback('products', refreshProducts)
+      dataService.unregisterRefreshCallback('clients', refreshClients)
+      dataService.unregisterRefreshCallback('fieldOfficers', refreshFieldOfficers)
+      dataService.unregisterRefreshCallback('salesmen', refreshSalesmen)
+    }
+  }, [refreshProducts, refreshClients, refreshFieldOfficers, refreshSalesmen])
 
   useEffect(() => {
     calculateBillTotal()
@@ -177,45 +190,6 @@ function BillGeneration() {
     }
   }, [currentItem, billItems])
 
-  const fetchClients = async () => {
-    try {
-      const data = await window.api.getClients()
-      setClients(data)
-    } catch (error) {
-      console.error("Error fetching clients:", error)
-      toast.error("Failed to load clients")
-    }
-  }
-
-  const fetchProducts = async () => {
-    try {
-      const data = await window.api.getProducts()
-      setProducts(data)
-    } catch (error) {
-      console.error("Error fetching products:", error)
-      toast.error("Failed to load products")
-    }
-  }
-
-  const fetchFieldOfficers = async () => {
-    try {
-      const data = await window.api.getFieldOfficers()
-      setFieldOfficers(data)
-    } catch (error) {
-      console.error("Error fetching field officers:", error)
-      toast.error("Failed to load field officers")
-    }
-  }
-
-  const fetchSalesmen = async () => {
-    try {
-      const data = await window.api.getSalesmen()
-      setSalesmen(data)
-    } catch (error) {
-      console.error("Error fetching salesmen:", error)
-      toast.error("Failed to load salesmen")
-    }
-  }
 
   const handleClientSelect = async (client) => {
     setSelectedClient(client)
@@ -357,8 +331,10 @@ function BillGeneration() {
 
   const calculateBillTotal = () => {
     const total = billItems.reduce((sum, item) => {
-      if (!item.isBonus) {
-        return sum + (item.total || 0)
+      // Only include non-bonus items in the total calculation
+      // Ensure item.total exists and is a valid number
+      if (!item.isBonus && item.total !== undefined && item.total !== null && !isNaN(item.total)) {
+        return sum + item.total
       }
       return sum
     }, 0)
@@ -372,8 +348,15 @@ function BillGeneration() {
       return
     }
 
+    // Ensure the current item has the correct total and isBonus flag
+    const itemToAdd = {
+      ...currentItem,
+      isBonus: false, // Ensure it's explicitly set as non-bonus
+      total: calculateItemTotal(currentItem.quantity, currentItem.rate, currentItem.discount, currentItem.extraDiscount)
+    }
+
     // Add the current item to the bill items list
-    setBillItems([...billItems, { ...currentItem }])
+    setBillItems([...billItems, itemToAdd])
 
     // Reset the current item
     setCurrentItem({
@@ -1057,6 +1040,11 @@ function BillGeneration() {
     try {
       console.log("Saving bill:", JSON.stringify(bill))
       const savedBill = await window.api.addBill(bill)
+      
+      // Invalidate cache for bills and dashboard stats
+      dataService.invalidateCacheOnModification('bills')
+      dataService.invalidateCacheOnModification('dashboardStats')
+      
       toast.success("Bill saved successfully")
       navigate(`/bill/${savedBill._id}`)
     } catch (error) {
@@ -1275,7 +1263,7 @@ function BillGeneration() {
 
                 {showProductDropdown && productSearchTerm && filteredProducts(productSearchTerm).length > 0 && (
                   <div
-                    className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto product-dropdown-container"
+                    className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-96 overflow-auto product-dropdown-container"
                     ref={productDropdownRef}
                   >
                     {filteredProducts(productSearchTerm).map((product, productIndex) => (

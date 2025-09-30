@@ -2,9 +2,21 @@
 
 import { useState, useEffect, useRef } from "react"
 import toast from "react-hot-toast"
+import { useLazyData } from "../hooks/useLazyData"
+import dataService from "../services/DataService"
 
 function InventoryManagement() {
-  const [products, setProducts] = useState([])
+  // Use lazy loading for products
+  const { 
+    data: products, 
+    loading: productsLoading, 
+    search: searchProducts, 
+    refresh: refreshProducts,
+    loadMore,
+    hasMore,
+    total
+  } = useLazyData('products', '', 50)
+  
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [currentProduct, setCurrentProduct] = useState({
     productName: "",
@@ -22,9 +34,10 @@ function InventoryManagement() {
   const searchInputRef = useRef(null)
   const formRef = useRef(null)
 
+  // Handle search term changes
   useEffect(() => {
-    fetchProducts()
-  }, [])
+    searchProducts(searchTerm)
+  }, [searchTerm, searchProducts])
 
 
 
@@ -94,15 +107,6 @@ function InventoryManagement() {
     }
   }, [isModalOpen])
 
-  const fetchProducts = async () => {
-    try {
-      const data = await window.api.getProducts()
-      setProducts(data)
-    } catch (error) {
-      console.error("Error fetching products:", error)
-      toast.error("Failed to load products")
-    }
-  }
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target
@@ -149,7 +153,9 @@ function InventoryManagement() {
         containerSize: "",
       })
       setIsEditing(false)
-      fetchProducts()
+      // Invalidate cache and refresh data
+      dataService.invalidateCacheOnModification('products')
+      refreshProducts()
     } catch (error) {
       console.error("Error saving product:", error)
       toast.error("Failed to save product")
@@ -180,21 +186,21 @@ function InventoryManagement() {
     try {
       await window.api.deleteProduct(id);
       toast.success("Product deleted successfully");
-      fetchProducts() // Refresh the products list
+      // Invalidate cache and refresh data
+      dataService.invalidateCacheOnModification('products')
+      refreshProducts()
     } catch (error) {
       console.error("Error deleting product:", error)
       toast.error("Failed to delete product")
     }
   }
 
-  const filteredProducts = products.filter((product) =>
-    product.productName.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  // Products are already filtered by the search function, no need to filter again
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Inventory Management: ({filteredProducts.length})</h1>
+        <h1 className="text-3xl font-bold">Inventory Management: ({products.length} of {total})</h1>
         <button
           onClick={() => {
             setCurrentProduct({
@@ -221,7 +227,7 @@ function InventoryManagement() {
       <div className="mb-4">
         <input
           type="text"
-          placeholder="Search products..."
+          placeholder="Search products by name or company..."
           className="w-full p-2 border border-gray-300 rounded-md"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
@@ -230,6 +236,12 @@ function InventoryManagement() {
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
+        {productsLoading && products.length === 0 && (
+          <div className="p-8 text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p className="mt-2 text-gray-600">Loading products...</p>
+          </div>
+        )}
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -252,8 +264,8 @@ function InventoryManagement() {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {filteredProducts.length > 0 ? (
-              filteredProducts.map((product) => (
+            {products.length > 0 ? (
+              products.map((product) => (
                 <tr key={product._id}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {product.productName}
@@ -294,6 +306,19 @@ function InventoryManagement() {
           </tbody>
         </table>
       </div>
+
+      {/* Load More Button */}
+      {hasMore && (
+        <div className="mt-4 text-center">
+          <button
+            onClick={loadMore}
+            disabled={productsLoading}
+            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-md"
+          >
+            {productsLoading ? 'Loading...' : 'Load More Products'}
+          </button>
+        </div>
+      )}
 
       {/* Modal for adding/editing products */}
       {isModalOpen && (
