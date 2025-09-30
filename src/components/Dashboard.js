@@ -2,53 +2,42 @@
 
 import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
+import { useDashboardStats } from "../hooks/useLazyData"
+import { useLazyData } from "../hooks/useLazyData"
+import dataService from "../services/DataService"
 
 function Dashboard() {
-  const [stats, setStats] = useState({
-    products: 0,
-    clients: 0,
-    bills: 0,
-    recentBills: [],
-  })
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  // Use the dashboard stats hook
+  const { 
+    stats, 
+    companyInfo, 
+    loading, 
+    error, 
+    refresh: refreshStats 
+  } = useDashboardStats()
+  
+  // Use lazy loading for products to get low stock items
+  const { 
+    data: allProducts, 
+    loading: productsLoading 
+  } = useLazyData('products', '', 100) // Load more products for low stock analysis
+  
   const [lowStockProducts, setLowStockProducts] = useState([])
   const [lowStockThreshold, setLowStockThreshold] = useState(50)
-  const [allProducts, setAllProducts] = useState([])
-  const [companyInfo, setCompanyInfo] = useState(null)
 
+  // Register refresh callbacks for dashboard updates
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        if (!window.api) {
-          throw new Error("API not available")
-        }
+    dataService.registerRefreshCallback('products', refreshStats)
+    dataService.registerRefreshCallback('clients', refreshStats)
+    dataService.registerRefreshCallback('bills', refreshStats)
 
-        const products = await window.api.getProducts()
-        setAllProducts(products)
-
-        const clients = await window.api.getClients()
-        const bills = await window.api.getBills()
-
-        // Fetch company info
-        const company = await window.api.getCompanyInfo()
-        setCompanyInfo(company)
-
-        setStats({
-          products: products.length,
-          clients: clients.length,
-          bills: bills.length,
-          recentBills: bills.slice(0, 5),
-        })
-        setLoading(false)
-      } catch (error) {
-        setError(error.message)
-        setLoading(false)
-      }
+    return () => {
+      dataService.unregisterRefreshCallback('products', refreshStats)
+      dataService.unregisterRefreshCallback('clients', refreshStats)
+      dataService.unregisterRefreshCallback('bills', refreshStats)
     }
+  }, [refreshStats])
 
-    fetchStats()
-  }, [])
 
   // Update low stock products whenever threshold changes or products change
   useEffect(() => {
