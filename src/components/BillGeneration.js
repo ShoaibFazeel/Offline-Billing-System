@@ -894,18 +894,21 @@ function BillGeneration() {
     }
   }
 
-  const checkInventoryLevels = () => {
+  // Check inventory levels. Accepts an optional items array to check (useful to avoid relying on state updates)
+  const checkInventoryLevels = (itemsToCheck = null) => {
+    const items = itemsToCheck || billItems
+
     // Create a map to track total quantities for each product
     const productQuantities = new Map()
 
-    // Add items from the bill items list
-    billItems.forEach((item) => {
+    // Add items from the provided items list
+    items.forEach((item) => {
       if (item.productId && !item.isBonus) {
         const currentQty = productQuantities.get(item.productId) || 0
         productQuantities.set(item.productId, currentQty + item.quantity)
       }
 
-      // Add bonus items
+      // Add bonus items if present on this item
       if (item.bonusItems) {
         item.bonusItems.forEach((bonusItem) => {
           if (bonusItem.productId) {
@@ -916,20 +919,21 @@ function BillGeneration() {
       }
     })
 
-    // Add current item if it has a product ID
-    if (currentItem.productId && !currentItem.isBonus) {
-      const currentQty = productQuantities.get(currentItem.productId) || 0
-      productQuantities.set(currentItem.productId, currentQty + currentItem.quantity)
-    }
+    // If no items array was provided, also include the currentItem (preserve previous behavior)
+    if (!itemsToCheck) {
+      if (currentItem.productId && !currentItem.isBonus) {
+        const currentQty = productQuantities.get(currentItem.productId) || 0
+        productQuantities.set(currentItem.productId, currentQty + currentItem.quantity)
+      }
 
-    // Add current bonus items if any
-    if (currentItem.bonusItems) {
-      currentItem.bonusItems.forEach((bonusItem) => {
-        if (bonusItem.productId) {
-          const currentQty = productQuantities.get(bonusItem.productId) || 0
-          productQuantities.set(bonusItem.productId, currentQty + bonusItem.quantity)
-        }
-      })
+      if (currentItem.bonusItems) {
+        currentItem.bonusItems.forEach((bonusItem) => {
+          if (bonusItem.productId) {
+            const currentQty = productQuantities.get(bonusItem.productId) || 0
+            productQuantities.set(bonusItem.productId, currentQty + bonusItem.quantity)
+          }
+        })
+      }
     }
 
     // Check if any product exceeds available quantity
@@ -970,20 +974,44 @@ function BillGeneration() {
       return
     }
 
-    // Add current item to bill items if it has a product ID
+    // If there's a currentItem, include it in the list to save without waiting for state update
+    let itemsToUse = [...billItems]
     if (currentItem.productId) {
-      await addCurrentItemToBill()
+      const itemToAdd = {
+        ...currentItem,
+        isBonus: false,
+        total: calculateItemTotal(currentItem.quantity, currentItem.rate, currentItem.discount, currentItem.extraDiscount),
+      }
+      itemsToUse = [...itemsToUse, itemToAdd]
+      // Update state so UI reflects the newly-added item immediately
+      setBillItems(itemsToUse)
+      // Reset current item (same behavior as addCurrentItemToBill)
+      setCurrentItem({
+        id: Date.now(),
+        _id: generateUniqueId(),
+        productId: "",
+        productName: "",
+        companyName: "",
+        containerSize: "",
+        quantity: 1,
+        rate: 0,
+        discount: 0,
+        extraDiscount: 0,
+        total: 0,
+        isBonus: false,
+        bonusItems: [],
+      })
     }
 
-    // Check inventory levels before proceeding
-    if (!checkInventoryLevels()) {
+    // Check inventory levels before proceeding (use the local items array)
+    if (!checkInventoryLevels(itemsToUse)) {
       return
     }
 
-    // Flatten the bill items and bonus items into a single array
+    // Flatten the itemsToUse and bonus items into a single array
     const allItems = []
 
-    billItems.forEach((item) => {
+    itemsToUse.forEach((item) => {
       if (item.productId) {
         allItems.push({
           _id: item._id || generateUniqueId(),
@@ -1024,6 +1052,17 @@ function BillGeneration() {
       return item
     })
 
+    // Compute totalAmount from itemsWithIds (exclude bonus items)
+    const computedTotal = itemsWithIds.reduce((sum, item) => {
+      if (!item.isBonus && item.total !== undefined && item.total !== null && !isNaN(item.total)) {
+        return sum + Number(item.total)
+      }
+      return sum
+    }, 0)
+    const roundedTotal = Math.round(computedTotal * 100) / 100
+    // Update UI total state to reflect exact amount being saved
+    setBillTotal(roundedTotal)
+
     const bill = {
       clientId: selectedClient._id,
       clientName: selectedClient.clientName,
@@ -1034,7 +1073,7 @@ function BillGeneration() {
       salesmanName: selectedSalesman.name,
       billDate: new Date(billDate),
       items: itemsWithIds,
-      totalAmount: billTotal,
+      totalAmount: roundedTotal,
     }
 
     try {
