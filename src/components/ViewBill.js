@@ -1024,6 +1024,9 @@ function ViewBill() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  S#
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Product
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -1049,6 +1052,7 @@ function ViewBill() {
             <tbody className="bg-white divide-y divide-gray-200">
               {(isEditing ? editedBill.items : bill.items).map((item, index) => (
                 <tr key={item._id || index} className={item.isBonus ? "bg-green-50" : ""}>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{index + 1}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {isEditing ? (
                       <div className="relative">
