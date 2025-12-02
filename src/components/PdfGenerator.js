@@ -29,12 +29,13 @@ class PdfGenerator {
     try {
       const pdfDoc = await PDFDocument.create()
       let page = pdfDoc.addPage([this.pageWidth, this.pageHeight])
+      let pageNo = 1
       const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
       const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
       let y = this.pageHeight - this.margin
       const left = this.margin
       const right = this.pageWidth - this.margin
-      const minFooterSpace = 20
+      const minFooterSpace = 80
       // --- HEADER ---
       const companyName = companyInfo.companyName || "Company Name"
       const companyAddress = companyInfo.companyAddress || "Address"
@@ -54,13 +55,17 @@ class PdfGenerator {
       // --- INVOICE INFO ---
       page.drawText(`Invoice No: ${bill.billId ? bill.billId : bill._id}`, { x: left, y, size: 10, font: bold })
       const now = new Date()
-      page.drawText(`Date: ${new Date(bill.billDate).toLocaleDateString()}`, { x: right-120, y, size: 10, font })
+      page.drawText(`Date: ${new Date(bill.billDate).toLocaleDateString("en-GB")}`, { x: right-120, y, size: 10, font })
       y -= 10
       page.drawText(`Name:`, { x: left, y, size: 10, font: bold })
       page.drawText(client.clientName || "N/A", { x: left+50, y, size: 10, font: bold })
-      page.drawText(`Printing Date: ${now.toLocaleDateString()}`, { x: right-120, y, size: 10, font })
+      page.drawText(`Printing Date: ${now.toLocaleDateString("en-GB")}`, { x: right-120, y, size: 10, font })
       y -= 10
-      const today = new Date().toLocaleDateString("en-US", {
+      page.drawText(`Address:`, { x: left, y, size: 10, font })
+      page.drawText(client.clientAddress || "N/A", { x: left+50, y, size: 10, font })
+      page.drawText(`Printing Time: ${now.toLocaleTimeString()}`, { x: right-120, y, size: 10, font })
+      y -= 10
+      const today = new Date().toLocaleDateString("en-GB", {
         weekday: "long"
       });
       page.drawText(`Day: ${today}`, { x: right-120, y, size: 10, font })
@@ -69,17 +74,14 @@ class PdfGenerator {
         page.drawText(client.clientNumber, { x: left+50, y, size: 10, font })
         y -= 10
       }
-      page.drawText(`Address:`, { x: left, y, size: 10, font })
-      page.drawText(client.clientAddress || "N/A", { x: left+50, y, size: 10, font })
-      y -= 10
       page.drawText(`F. Officer: ${fieldOfficer.name || "N/A"} ${fieldOfficer.phoneNumber || ""}`, { x: left, y, size: 8, font })
       // y -= 13
       page.drawText(`Salesman: ${salesman.name || "N/A"} ${salesman.phoneNumber || ""}`, { x: right-160, y, size: 8, font })
       y -= 5
       // --- TABLE HEADER ---
       page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 0.5, color: this.colors.black })
-      y -= 10
-      const col = [left, left+18, left+210, left+235, left+260, left+300, left+340]
+      y -= 12
+      const col = [left, left+18, left+235, left+260, left+285, left+315, left+350]
       page.drawText("S#", { x: col[0], y, size: 10, font: bold })
       page.drawText("Description", { x: col[1], y, size: 10, font: bold })
       page.drawText("Qty", { x: col[2], y, size: 10, font: bold })
@@ -108,19 +110,37 @@ class PdfGenerator {
         }
         const rowHeight = y - tempY + 4
         // PAGE BREAK if not enough space for row + footer
-        if (y - rowHeight < minFooterSpace) {
+        if (y - rowHeight < minFooterSpace || idx === bill.items.length -1 && y < 170) {
+          let footerY = 70
+          page.drawLine({ start: { x: left, y: footerY + 25 }, end: { x: right, y: footerY + 25 }, thickness: 0.5, color: this.colors.black })
+          page.drawRectangle({ x: left, y: footerY - 27, width: 380, height: 46, borderColor: this.colors.black, borderWidth: 1})
+          page.drawText("General Warranty:", { x: left + 5, y: footerY + 10, size: 8, font: bold })
+          page.drawText(" under alternative medicine & health products (enlistment) Rules 2014", { x: left + 75, y: footerY + 10, size: 7, font: bold })
+          page.drawText("We as the authorised distributors/agents and on behalf of the Principals/Manufacturer hereby give warranty that the", { x: left  + 6, y: footerY + 2, size: 6, font })
+          page.drawText("supplied alternative medicines & health products mentioned herein do not contravene any provision of the prevailing DRAP Act & rules", { x: left  + 6, y: footerY - 6, size: 6, font })
+          page.drawText("Note:", { x: left + 5, y: footerY - 15, size: 8, font: bold })
+          page.drawText(" (A) For dated (expired) items, Please inform 6 months before actual expiry date.", { x: left + 25, y: footerY - 15, size: 6, font })
+          page.drawText(" (B) This warranty does not apply to the ayurvedic, general items, unani, food items mentioned in this cash memo/invoice.", { x: left + 25, y: footerY - 22, size: 6, font })
+          page.drawText("Designed By: Shoaib Fazeel B - 24/7 Hours Help Line (0347-8405935, 0307-6341160)", { x: left, y: footerY - 35, size: 7, font })
+          page.drawText(`Page No: ${pageNo++}`, { x: right - 50, y: footerY - 37, size: 8, font })
+          
           page = pdfDoc.addPage([this.pageWidth, this.pageHeight])
           y = this.pageHeight - this.margin
           // Redraw table header
+          // --- INVOICE INFO ---
           page.drawText(`Invoice No: ${bill.billId ? bill.billId : bill._id}`, { x: left, y, size: 10, font: bold })
           const now = new Date()
-          page.drawText(`Date: ${new Date(bill.billDate).toLocaleDateString()}`, { x: right-120, y, size: 10, font })
+          page.drawText(`Date: ${new Date(bill.billDate).toLocaleDateString("en-GB")}`, { x: right-120, y, size: 10, font })
           y -= 10
           page.drawText(`Name:`, { x: left, y, size: 10, font: bold })
           page.drawText(client.clientName || "N/A", { x: left+50, y, size: 10, font: bold })
-          page.drawText(`Printing Date: ${now.toLocaleDateString()}`, { x: right-120, y, size: 10, font })
+          page.drawText(`Printing Date: ${now.toLocaleDateString("en-GB")}`, { x: right-120, y, size: 10, font })
           y -= 10
-          const today = new Date().toLocaleDateString("en-US", {
+          page.drawText(`Address:`, { x: left, y, size: 10, font })
+          page.drawText(client.clientAddress || "N/A", { x: left+50, y, size: 10, font })
+          page.drawText(`Printing Time: ${now.toLocaleTimeString()}`, { x: right-120, y, size: 10, font })
+          y -= 10
+          const today = new Date().toLocaleDateString("en-GB", {
             weekday: "long"
           });
           page.drawText(`Day: ${today}`, { x: right-120, y, size: 10, font })
@@ -129,16 +149,13 @@ class PdfGenerator {
             page.drawText(client.clientNumber, { x: left+50, y, size: 10, font })
             y -= 10
           }
-          page.drawText(`Address:`, { x: left, y, size: 10, font })
-          page.drawText(client.clientAddress || "N/A", { x: left+50, y, size: 10, font })
-          y -= 10
           page.drawText(`F. Officer: ${fieldOfficer.name || "N/A"} ${fieldOfficer.phoneNumber || ""}`, { x: left, y, size: 8, font })
           // y -= 13
           page.drawText(`Salesman: ${salesman.name || "N/A"} ${salesman.phoneNumber || ""}`, { x: right-160, y, size: 8, font })
           y -= 5
           // --- TABLE HEADER ---
           page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 0.5, color: this.colors.black })
-          y -= 10
+          y -= 12
           page.drawText("S#", { x: col[0], y, size: 10, font: bold })
           page.drawText("Description", { x: col[1], y, size: 10, font: bold })
           page.drawText("Qty", { x: col[2], y, size: 10, font: bold })
@@ -155,65 +172,78 @@ class PdfGenerator {
         let companyText = product.companyName || ""
         let sizeText = product.containerSize || ""
         let extra = companyText + (companyText && sizeText ? "-" : "") + sizeText
-        let y2 = this.drawWrappedText(page, item.productName.trim(), col[1], y, descColWidth, bold, 10, this.colors.black)
+        let y2 = this.drawWrappedText(page, item.productName.trim(), col[1], y, descColWidth, bold, 8, this.colors.black)
         if (product.companyName || product.containerSize) {
           let companyText = product.companyName.trim() || ""
           let sizeText = product.containerSize || ""
           let extra = companyText + (companyText && sizeText ? " - " : "") + sizeText
           if (extra) {
-            y2 = this.drawWrappedText(page, extra, col[1], y2 + 4, descColWidth, font, 8, rgb(0.3,0.3,0.3))
+            y2 = this.drawWrappedText(page, extra, col[1], y2 + 1, descColWidth, font, 8, rgb(0.3,0.3,0.3))
           }
         }
         // Reset y to top of row for other columns
-        const colY = y
-        page.drawText(String(item.quantity), { x: col[2], y: colY, size: 10, font })
-        page.drawText(item.isBonus ? String(item.quantity) : "0", { x: col[3], y: colY, size: 10, font })
-        page.drawText(item.rate.toFixed(2), { x: col[4], y: colY, size: 10, font })
+        const colY = y - 2
+        page.drawText(String(item.quantity), { x: col[2]+2, y: colY, size: 10, font })
+        page.drawText(item.isBonus ? String(item.quantity) : "-", { x: col[3]+4, y: colY, size: 10, font })
+        page.drawText(`${Math.round(item.rate.toFixed(2))}`, { x: col[4]+2, y: colY, size: 10, font })
         if (showDiscountAsAmount) {
           const discAmt = ((item.rate * item.quantity * (item.discount || 0)) / 100).toFixed(2)
-          page.drawText(discAmt, { x: col[5] + 5, y: colY, size: 10, font })
+          page.drawText(`${Math.round(discAmt) != 0 ? Math.round(discAmt) : "-"}`, { x: col[5] + 2, y: colY, size: 10, font })
         } else {
-          page.drawText(`${item.discount || 0}%`, { x: col[5] + 5, y: colY, size: 10, font })
+          page.drawText(`${item.discount || "-"}${item.discount ? "%" : ""}`, { x: col[5] + 2, y: colY, size: 10, font })
         }
-        page.drawText(item.total.toFixed(2), { x: col[6], y: colY, size: 10, font })
+        page.drawText(`${Math.round(item.total.toFixed(2))}`, { x: col[6]+2, y: colY, size: 10, font })
         y -= Math.ceil(y - y2) + 1
       }
       y += 5
       page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 0.5, color: this.colors.black })
       y -= 15
       // --- TOTALS & FOOTER ---
-      if (y < minFooterSpace || y < 130) {
-        page = pdfDoc.addPage([this.pageWidth, this.pageHeight])
-        y = this.pageHeight - this.margin
 
-        page.drawText(`Invoice No: ${bill.billId ? bill.billId : bill._id}`, { x: left, y, size: 10, font: bold })
-          const now = new Date()
-          page.drawText(`Date: ${new Date(bill.billDate).toLocaleDateString()}`, { x: right-120, y, size: 10, font })
-          y -= 10
-          page.drawText(`Name:`, { x: left, y, size: 10, font: bold })
-          page.drawText(client.clientName || "N/A", { x: left+50, y, size: 10, font: bold })
-          page.drawText(`Printing Date: ${now.toLocaleDateString()}`, { x: right-120, y, size: 10, font })
-          y -= 10
-          const today = new Date().toLocaleDateString("en-US", {
-            weekday: "long"
-          });
-          page.drawText(`Day: ${today}`, { x: right-120, y, size: 10, font })
-          if (client.clientNumber) {
-            page.drawText(`Phone:`, { x: left, y, size: 10, font })
-            page.drawText(client.clientNumber, { x: left+50, y, size: 10, font })
-            y -= 10
-          }
-          page.drawText(`Address:`, { x: left, y, size: 10, font })
-          page.drawText(client.clientAddress || "N/A", { x: left+50, y, size: 10, font })
-          y -= 10
-          page.drawText(`F. Officer: ${fieldOfficer.name || "N/A"} ${fieldOfficer.phoneNumber || ""}`, { x: left, y, size: 8, font })
-          // y -= 13
-          page.drawText(`Salesman: ${salesman.name || "N/A"} ${salesman.phoneNumber || ""}`, { x: right-160, y, size: 8, font })
-          y -= 5
-          // --- TABLE HEADER ---
-          page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 0.5, color: this.colors.black })
-          y -= 15
-      }
+      // if (y < minFooterSpace || y < 130) {
+      //   let footerY = 70
+      //   page.drawRectangle({ x: left, y: footerY - 27, width: 380, height: 46, borderColor: this.colors.black, borderWidth: 1})
+      //   page.drawText("General Warranty:", { x: left + 5, y: footerY + 10, size: 8, font: bold })
+      //   page.drawText(" under alternative medicine & health products (enlistment) Rules 2014", { x: left + 75, y: footerY + 10, size: 7, font: bold })
+      //   page.drawText("We as the authorised distributors/agents and on behalf of the Principals/Manufacturer hereby give warranty that the", { x: left  + 6, y: footerY + 2, size: 6, font })
+      //   page.drawText("supplied alternative medicines & health products mentioned herein do not contravene any provision of the prevailing DRAP Act & rules", { x: left  + 6, y: footerY - 6, size: 6, font })
+      //   page.drawText("Note:", { x: left + 5, y: footerY - 15, size: 8, font: bold })
+      //   page.drawText(" (A) For dated (expired) items, Please inform 6 months before actual expiry date.", { x: left + 25, y: footerY - 15, size: 6, font })
+      //   page.drawText(" (B) This warranty does not apply to the ayurvedic, general items, unani, food items mentioned in this cash memo/invoice.", { x: left + 25, y: footerY - 22, size: 6, font })
+      //   page.drawText("Designed By: Shoaib Fazeel B - 24/7 Hours Help Line (0347-8405935, 0307-6341160)", { x: left, y: footerY - 35, size: 7, font })
+        
+      //   page = pdfDoc.addPage([this.pageWidth, this.pageHeight])
+      //   y = this.pageHeight - this.margin
+
+      //   page.drawText(`Invoice No: ${bill.billId ? bill.billId : bill._id}`, { x: left, y, size: 10, font: bold })
+      //     const now = new Date()
+      //     page.drawText(`Date: ${new Date(bill.billDate).toLocaleDateString("en-GB")}`, { x: right-120, y, size: 10, font })
+      //     y -= 10
+      //     page.drawText(`Name:`, { x: left, y, size: 10, font: bold })
+      //     page.drawText(client.clientName || "N/A", { x: left+50, y, size: 10, font: bold })
+      //     page.drawText(`Printing Date: ${now.toLocaleDateString("en-GB")}`, { x: right-120, y, size: 10, font })
+      //     y -= 10
+      //     const today = new Date().toLocaleDateString("en-GB", {
+      //       weekday: "long"
+      //     });
+      //     page.drawText(`Day: ${today}`, { x: right-120, y, size: 10, font })
+      //     if (client.clientNumber) {
+      //       page.drawText(`Phone:`, { x: left, y, size: 10, font })
+      //       page.drawText(client.clientNumber, { x: left+50, y, size: 10, font })
+      //       y -= 10
+      //     }
+      //     page.drawText(`Address:`, { x: left, y, size: 10, font })
+      //     page.drawText(client.clientAddress || "N/A", { x: left+50, y, size: 10, font })
+      //     y -= 10
+      //     page.drawText(`F. Officer: ${fieldOfficer.name || "N/A"} ${fieldOfficer.phoneNumber || ""}`, { x: left, y, size: 8, font })
+      //     // y -= 13
+      //     page.drawText(`Salesman: ${salesman.name || "N/A"} ${salesman.phoneNumber || ""}`, { x: right-160, y, size: 8, font })
+      //     y -= 5
+      //     // --- TABLE HEADER ---
+      //     page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 0.5, color: this.colors.black })
+      //     y -= 15
+      // }
+
       // Totals
       const grossAmount = bill.items.reduce((sum, item) => !item.isBonus ? sum + item.quantity * item.rate : sum, 0)
       const totalDiscount = bill.items.reduce((sum, item) => !item.isBonus ? sum + ((item.rate * item.quantity * (item.discount || 0)) / 100) : sum, 0)
@@ -237,7 +267,7 @@ class PdfGenerator {
       page.drawText(totalDiscount.toFixed(2), { x: boxX + 130, y: boxY - 30, size: 9, font })
       boxTextY -= 14
       page.drawText(`TOTAL AMOUNT`, { x: boxX + 174, y: boxY - 10, size: 8, font })
-      page.drawText(bill.totalAmount.toFixed(2), { x: boxX + 187, y: boxY - 30, size: 9, font })
+      page.drawText(`${Math.round(bill.totalAmount.toFixed(2))}`, { x: boxX + 187, y: boxY - 30, size: 9, font })
       y -= boxHeight
       page.drawLine({ start: { x: boxX, y: boxY - 15 }, end: { x: boxX + boxWidth, y: boxY - 15 }, thickness: 0.5, color: this.colors.black })
       y += 7
@@ -251,7 +281,7 @@ class PdfGenerator {
       page.drawText("Prepared By", { x: left + 10, y: footerY + 24, size: 9, font })
       page.drawText("Checked By", { x: left + 90, y: footerY + 24, size: 9, font })
       page.drawText("TOTAL AMOUNT:", { x: left + 250, y: footerY + 24, size: 9, font: bold })
-      page.drawText(bill.totalAmount.toFixed(2), { x: left + 330, y: footerY + 24, size: 9, font: bold })
+      page.drawText(`${Math.round(bill.totalAmount.toFixed(2))}`, { x: left + 330, y: footerY + 24, size: 9, font: bold })
       
       page.drawRectangle({ x: left, y: footerY - 27, width: 380, height: 46, borderColor: this.colors.black, borderWidth: 1})
       page.drawText("General Warranty:", { x: left + 5, y: footerY + 10, size: 8, font: bold })
@@ -262,6 +292,7 @@ class PdfGenerator {
       page.drawText(" (A) For dated (expired) items, Please inform 6 months before actual expiry date.", { x: left + 25, y: footerY - 15, size: 6, font })
       page.drawText(" (B) This warranty does not apply to the ayurvedic, general items, unani, food items mentioned in this cash memo/invoice.", { x: left + 25, y: footerY - 22, size: 6, font })
       page.drawText("Designed By: Shoaib Fazeel B - 24/7 Hours Help Line (0347-8405935, 0307-6341160)", { x: left, y: footerY - 35, size: 7, font })
+      page.drawText(`Page No: ${pageNo}`, { x: right - 50, y: footerY - 37, size: 8, font })
       return await pdfDoc.save()
     } catch (error) {
       console.error("Error generating PDF:", error)
