@@ -65,14 +65,14 @@ class DataService {
   // Products with lazy loading
   async getProducts(searchTerm = '', limit = this.BATCH_SIZE, offset = 0, useCache = true) {
     const cacheKey = `products_${searchTerm}_${limit}_${offset}`
-    
+
     return this.fetchWithCache(cacheKey, async () => {
       if (!window.api) {
         throw new Error('API not available')
       }
-      
+
       const allProducts = await window.api.getProducts()
-      
+
       // Apply search filter
       let filteredProducts = allProducts
       if (searchTerm) {
@@ -81,12 +81,12 @@ class DataService {
           product.companyName.toLowerCase().includes(searchTerm.toLowerCase())
         )
       }
-      
+
       // Apply pagination
       const paginatedProducts = filteredProducts.slice(offset, offset + limit)
-      
+
       console.log(`Products pagination: offset=${offset}, limit=${limit}, total=${filteredProducts.length}, returned=${paginatedProducts.length}, hasMore=${offset + limit < filteredProducts.length}`)
-      
+
       return {
         data: paginatedProducts,
         total: filteredProducts.length,
@@ -100,14 +100,14 @@ class DataService {
   // Clients with lazy loading
   async getClients(searchTerm = '', limit = this.BATCH_SIZE, offset = 0, useCache = true) {
     const cacheKey = `clients_${searchTerm}_${limit}_${offset}`
-    
+
     return this.fetchWithCache(cacheKey, async () => {
       if (!window.api) {
         throw new Error('API not available')
       }
-      
+
       const allClients = await window.api.getClients()
-      
+
       // Apply search filter
       let filteredClients = allClients
       if (searchTerm) {
@@ -117,12 +117,12 @@ class DataService {
           client.clientAddress.toLowerCase().includes(searchTerm.toLowerCase())
         )
       }
-      
+
       // Apply pagination
       const paginatedClients = filteredClients.slice(offset, offset + limit)
-      
+
       console.log(`Clients pagination: offset=${offset}, limit=${limit}, total=${filteredClients.length}, returned=${paginatedClients.length}, hasMore=${offset + limit < filteredClients.length}`)
-      
+
       return {
         data: paginatedClients,
         total: filteredClients.length,
@@ -136,14 +136,14 @@ class DataService {
   // Bills with lazy loading
   async getBills(searchTerm = '', limit = this.BATCH_SIZE, offset = 0, useCache = true) {
     const cacheKey = `bills_${searchTerm}_${limit}_${offset}`
-    
+
     return this.fetchWithCache(cacheKey, async () => {
       if (!window.api) {
         throw new Error('API not available')
       }
-      
+
       const allBills = await window.api.getBills()
-      
+
       // Apply search filter
       let filteredBills = allBills
       if (searchTerm) {
@@ -152,10 +152,10 @@ class DataService {
           bill.billId?.toString().includes(searchTerm)
         )
       }
-      
+
       // Apply pagination
       const paginatedBills = filteredBills.slice(offset, offset + limit)
-      
+
       return {
         data: paginatedBills,
         total: filteredBills.length,
@@ -169,14 +169,14 @@ class DataService {
   // Field officers with lazy loading
   async getFieldOfficers(searchTerm = '', limit = this.BATCH_SIZE, offset = 0, useCache = true) {
     const cacheKey = `fieldOfficers_${searchTerm}_${limit}_${offset}`
-    
+
     return this.fetchWithCache(cacheKey, async () => {
       if (!window.api) {
         throw new Error('API not available')
       }
-      
+
       const allFieldOfficers = await window.api.getFieldOfficers()
-      
+
       // Apply search filter
       let filteredFieldOfficers = allFieldOfficers
       if (searchTerm) {
@@ -185,10 +185,10 @@ class DataService {
           officer.phoneNumber.includes(searchTerm)
         )
       }
-      
+
       // Apply pagination
       const paginatedFieldOfficers = filteredFieldOfficers.slice(offset, offset + limit)
-      
+
       return {
         data: paginatedFieldOfficers,
         total: filteredFieldOfficers.length,
@@ -199,17 +199,48 @@ class DataService {
     }, useCache)
   }
 
-  // Salesmen with lazy loading
-  async getSalesmen(searchTerm = '', limit = this.BATCH_SIZE, offset = 0, useCache = true) {
-    const cacheKey = `salesmen_${searchTerm}_${limit}_${offset}`
-    
+  // Low Stock Products with lazy loading
+  async getLowStockProducts(threshold = 50, limit = this.BATCH_SIZE, offset = 0, useCache = true) {
+    const cacheKey = `lowStockProducts_${threshold}_${limit}_${offset}`
+
     return this.fetchWithCache(cacheKey, async () => {
       if (!window.api) {
         throw new Error('API not available')
       }
-      
+
+      const allProducts = await window.api.getProducts()
+
+      // Apply filters: not infinite and quantity <= threshold
+      const lowStockProducts = allProducts.filter(product =>
+        product.hasInfiniteQuantity === false && product.quantity <= threshold
+      )
+
+      // Apply pagination
+      const paginatedProducts = lowStockProducts.slice(offset, offset + limit)
+
+      console.log(`Low stock products pagination: threshold=${threshold}, offset=${offset}, limit=${limit}, total=${lowStockProducts.length}, returned=${paginatedProducts.length}`)
+
+      return {
+        data: paginatedProducts,
+        total: lowStockProducts.length,
+        hasMore: offset + limit < lowStockProducts.length,
+        offset,
+        limit
+      }
+    }, useCache)
+  }
+
+  // Salesmen with lazy loading
+  async getSalesmen(searchTerm = '', limit = this.BATCH_SIZE, offset = 0, useCache = true) {
+    const cacheKey = `salesmen_${searchTerm}_${limit}_${offset}`
+
+    return this.fetchWithCache(cacheKey, async () => {
+      if (!window.api) {
+        throw new Error('API not available')
+      }
+
       const allSalesmen = await window.api.getSalesmen()
-      
+
       // Apply search filter
       let filteredSalesmen = allSalesmen
       if (searchTerm) {
@@ -218,10 +249,10 @@ class DataService {
           salesman.phoneNumber.includes(searchTerm)
         )
       }
-      
+
       // Apply pagination
       const paginatedSalesmen = filteredSalesmen.slice(offset, offset + limit)
-      
+
       return {
         data: paginatedSalesmen,
         total: filteredSalesmen.length,
@@ -275,13 +306,13 @@ class DataService {
       if (!window.api) {
         throw new Error('API not available')
       }
-      
+
       const [products, clients, bills] = await Promise.all([
         window.api.getProducts(),
         window.api.getClients(),
         window.api.getBills()
       ])
-      
+
       return {
         products: products.length,
         clients: clients.length,
@@ -321,13 +352,13 @@ class DataService {
     // Clear all caches related to the modified data type
     const keysToDelete = []
     for (const key of this.cache.keys()) {
-      if (key.includes(type) || 
-          key === 'dashboardStats' || 
-          key === `all${type.charAt(0).toUpperCase() + type.slice(1)}`) {
+      if (key.includes(type) ||
+        key === 'dashboardStats' ||
+        key === `all${type.charAt(0).toUpperCase() + type.slice(1)}`) {
         keysToDelete.push(key)
       }
     }
-    
+
     keysToDelete.forEach(key => this.clearCache(key))
     console.log(`Cache invalidated for ${type}:`, keysToDelete)
 

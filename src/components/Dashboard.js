@@ -8,22 +8,25 @@ import dataService from "../services/DataService"
 
 function Dashboard() {
   // Use the dashboard stats hook
-  const { 
-    stats, 
-    companyInfo, 
-    loading, 
-    error, 
-    refresh: refreshStats 
+  const {
+    stats,
+    companyInfo,
+    loading,
+    error,
+    refresh: refreshStats
   } = useDashboardStats()
-  
-  // Use lazy loading for products to get low stock items
-  const { 
-    data: allProducts, 
-    loading: productsLoading 
-  } = useLazyData('products', '', 100) // Load more products for low stock analysis
-  
-  const [lowStockProducts, setLowStockProducts] = useState([])
+
   const [lowStockThreshold, setLowStockThreshold] = useState(50)
+
+  // Use lazy loading specifically for low stock products
+  const {
+    data: lowStockProducts,
+    loading: lowStockLoading,
+    total: lowStockTotal,
+    currentPage: lowStockPage,
+    goToPage: goLowStockPage,
+    hasMore: lowStockHasMore
+  } = useLazyData('lowStockProducts', '', 10, { threshold: lowStockThreshold })
 
   // Register refresh callbacks for dashboard updates
   useEffect(() => {
@@ -38,19 +41,6 @@ function Dashboard() {
     }
   }, [refreshStats])
 
-
-  // Update low stock products whenever threshold changes or products change
-  useEffect(() => {
-    updateLowStockProducts()
-  }, [lowStockThreshold, allProducts])
-
-  const updateLowStockProducts = () => {
-    // Filter products with quantity below threshold and not infinite
-    const lowStock = allProducts.filter(
-      (product) => product.hasInfiniteQuantity === false && product.quantity <= lowStockThreshold,
-    )
-    setLowStockProducts(lowStock)
-  }
 
   const handleThresholdChange = (e) => {
     const value = Number.parseInt(e.target.value)
@@ -112,9 +102,9 @@ function Dashboard() {
 
       {/* Low Stock Alert Section */}
       <div className="bg-white rounded-lg shadow p-6 mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Low Stock Alert</h2>
-          <div className="flex items-center">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
+          <h2 className="text-xl font-semibold">Low Stock Alert ({lowStockTotal})</h2>
+          <div className="flex items-center mt-2 sm:mt-0">
             <label htmlFor="threshold" className="mr-2 text-sm font-medium">
               Threshold:
             </label>
@@ -129,53 +119,112 @@ function Dashboard() {
           </div>
         </div>
 
-        {lowStockProducts.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Product Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Current Stock
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {lowStockProducts.map((product) => (
-                  <tr key={product._id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {product.productName}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.quantity}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {product.quantity === 0 ? (
-                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-                          Out of Stock
-                        </span>
-                      ) : (
-                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                          Low Stock
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <Link to="/inventory" className="text-blue-600 hover:text-blue-900">
-                        Update Stock
-                      </Link>
-                    </td>
+        {lowStockLoading ? (
+          <div className="text-center py-4 text-gray-500">Loading low stock items...</div>
+        ) : lowStockProducts.length > 0 ? (
+          <>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Product Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Current Stock
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Action
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {lowStockProducts.map((product) => (
+                    <tr key={product._id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {product.productName}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.quantity}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {product.quantity === 0 ? (
+                          <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                            Out of Stock
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                            Low Stock
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <Link to="/inventory" className="text-blue-600 hover:text-blue-900">
+                          Update Stock
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 mt-4">
+              <div className="flex flex-1 justify-between sm:hidden">
+                <button
+                  onClick={() => goLowStockPage(lowStockPage - 1)}
+                  disabled={lowStockPage === 1}
+                  className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => goLowStockPage(lowStockPage + 1)}
+                  disabled={!lowStockHasMore}
+                  className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+              <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm text-gray-700">
+                    Showing <span className="font-medium">{(lowStockPage - 1) * 10 + 1}</span> to <span className="font-medium">{Math.min(lowStockPage * 10, lowStockTotal)}</span> of{' '}
+                    <span className="font-medium">{lowStockTotal}</span> results
+                  </p>
+                </div>
+                <div>
+                  <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                    <button
+                      onClick={() => goLowStockPage(lowStockPage - 1)}
+                      disabled={lowStockPage === 1}
+                      className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                    >
+                      <span className="sr-only">Previous</span>
+                      <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 010 1.06L8.832 10l3.958 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06 0z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                    <span className="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 focus:z-20 focus:outline-offset-0">
+                      Page {lowStockPage}
+                    </span>
+                    <button
+                      onClick={() => goLowStockPage(lowStockPage + 1)}
+                      disabled={!lowStockHasMore}
+                      className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                    >
+                      <span className="sr-only">Next</span>
+                      <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 010-1.06L11.168 10 7.21 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06 0z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </nav>
+                </div>
+              </div>
+            </div>
+          </>
         ) : (
           <div className="text-center py-4 text-gray-500">
             No products below the threshold of {lowStockThreshold} units.

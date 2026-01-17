@@ -269,8 +269,8 @@ function Reports() {
         .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
         .map(([monthYear, bills]) => ({
           groupName: monthYear,
-            bills,
-            totalAmount: bills.reduce((sum, bill) => sum + (bill.totalAmount || 0), 0),
+          bills,
+          totalAmount: bills.reduce((sum, bill) => sum + (bill.totalAmount || 0), 0),
           totalProfit: bills.reduce((sum, bill) => sum + calculateBillProfit(bill), 0),
         }))
     }
@@ -282,116 +282,239 @@ function Reports() {
     return filteredBills.reduce((total, bill) => total + (bill.totalAmount || 0), 0)
   }
 
+  // Helper function to draw wrapped text
+  const drawWrappedText = (page, text, x, y, maxWidth, font, fontSize, color, lineHeightMultiplier = 1.2) => {
+    const words = text.split(" ")
+    let line = ""
+    let lineY = y
+    const lineHeight = fontSize * lineHeightMultiplier
+    for (const word of words) {
+      const testLine = line + (line ? " " : "") + word
+      const testWidth = font.widthOfTextAtSize(testLine, fontSize)
+      if (testWidth > maxWidth && line !== "") {
+        page.drawText(line, { x, y: lineY, size: fontSize, font, color })
+        line = word
+        lineY -= lineHeight
+      } else {
+        line = testLine
+      }
+    }
+    if (line) {
+      page.drawText(line, { x, y: lineY, size: fontSize, font, color })
+    }
+    return lineY - lineHeight
+  }
+
   // Helper to generate PDF bytes for the report
   const generateReportPdfBytes = async () => {
-    // (Same logic as generateReportPdf, but return pdfBytes instead of downloading)
     const companyInfo = await window.api.getCompanyInfo()
     const { PDFDocument, rgb, StandardFonts } = await import("pdf-lib")
     const pdfDoc = await PDFDocument.create()
-    const pageWidth = 595.28
-    const pageHeight = 841.89
-    const left = 40
-    const right = 555
-    let y = 800
+
+    // Page dimensions matching Bill PDF
+    const pageWidth = 410 // approx 15cm
+    const pageHeight = 595.3 // approx 21cm
+    const margin = 20
+    const left = margin
+    const right = pageWidth - margin
+
+    let page = pdfDoc.addPage([pageWidth, pageHeight])
+    let y = pageHeight - margin
+
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
     const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
-    const margin = 40
-    const col = [left, left+80, left+200, left+320, left+420]
-    // --- Header ---
-    const companyName = companyInfo.companyName || "Company Name"
-    const companyAddress = companyInfo.companyAddress || "Address"
-    const companyNameWidth = bold.widthOfTextAtSize(companyName, 16)
-    const companyAddressWidth = font.widthOfTextAtSize(companyAddress, 10)
-    // Centered company name
-    pdfDoc.addPage([pageWidth, pageHeight])
-    let page = pdfDoc.getPages()[0]
-    page.drawText(companyName, {
-      x: (pageWidth - companyNameWidth) / 2,
-      y,
-      size: 16,
-      font: bold,
+
+    // --- Header Section ---
+    const companyName = companyInfo.companyName || "BHATTI DAWAKHANA"
+    const companyAddress = companyInfo.companyAddress || "Kachehri Road, Opposit Toyota Stand, Pasrur"
+    const ownerInfo = `HAKEEM SHAH NAWAZ BHATTI ${companyInfo.ownerPhone || "03007169315, 03187135940"}`
+
+    // Centered Company Name
+    const nameSize = 14
+    const nameWidth = bold.widthOfTextAtSize(companyName, nameSize)
+    page.drawText(companyName, { x: (pageWidth - nameWidth) / 2, y, size: nameSize, font: bold })
+    y -= 15
+
+    // Centered Address
+    const addrSize = 8
+    const addrWidth = font.widthOfTextAtSize(companyAddress, addrSize)
+    page.drawText(companyAddress, { x: (pageWidth - addrWidth) / 2, y, size: addrSize, font })
+    y -= 12
+
+    // Centered & Underlined Owner Info
+    const ownerSize = 8
+    const ownerWidth = bold.widthOfTextAtSize(ownerInfo, ownerSize)
+    const ownerX = (pageWidth - ownerWidth) / 2
+    page.drawText(ownerInfo, { x: ownerX, y, size: ownerSize, font: bold })
+    page.drawLine({
+      start: { x: ownerX, y: y - 2 },
+      end: { x: ownerX + ownerWidth, y: y - 2 },
+      thickness: 0.5,
       color: rgb(0, 0, 0),
     })
-    // Centered address
-    page.drawText(companyAddress, {
-      x: (pageWidth - companyAddressWidth) / 2,
-      y: y - 20,
-      size: 10,
-      font,
-      color: rgb(0, 0, 0),
+    y -= 15
+
+    // Report Date Box (Top Right)
+    const boxWidth = 70
+    const boxHeight = 25
+    const boxX = right - boxWidth
+    const boxY = pageHeight - margin + 10
+    page.drawRectangle({
+      x: boxX,
+      y: boxY - boxHeight,
+      width: boxWidth,
+      height: boxHeight,
+      borderColor: rgb(0, 0, 0),
+      borderWidth: 1,
     })
-    // Report Date box (top right)
-    const reportDateLabel = "Report Date"
-    const reportDate = new Date().toLocaleDateString()
-    page.drawRectangle({ x: right - 40, y: y - 5, width: 90, height: 32, borderColor: rgb(0,0,0), borderWidth: 1, color: rgb(1,1,1) })
-    page.drawText(reportDateLabel, { x: right - 35, y: y + 15, size: 10, font: bold, color: rgb(0,0,0) })
-    page.drawText(reportDate, { x: right - 35, y: y, size: 10, font, color: rgb(0,0,0) })
-    y -= 50
-    // Horizontal line
-    page.drawLine({ start: { x: left, y }, end: { x: right + 50, y }, thickness: 1, color: rgb(0,0,0) })
-    y -= 20
-    // --- Report Title ---
+    page.drawLine({ start: { x: boxX, y: boxY - 10 }, end: { x: right, y: boxY - 10 }, thickness: 1, color: rgb(0, 0, 0) })
+
+    const dateLabel = "Report Date"
+    const dateLabelWidth = bold.widthOfTextAtSize(dateLabel, 7)
+    page.drawText(dateLabel, { x: boxX + (boxWidth - dateLabelWidth) / 2, y: boxY - 8, size: 7, font: bold })
+
+    const dateValue = new Date().toLocaleDateString("en-GB")
+    const dateValueWidth = font.widthOfTextAtSize(dateValue, 8)
+    page.drawText(dateValue, { x: boxX + (boxWidth - dateValueWidth) / 2, y: boxY - 20, size: 8, font })
+
+    // Report Title
+
     const reportTitle = "Daily Sale Report"
-    const reportTitleWidth = bold.widthOfTextAtSize(reportTitle, 14)
-    page.drawText(reportTitle, {
-      x: (pageWidth - reportTitleWidth) / 2,
-      y,
-      size: 14,
-      font: bold,
-      color: rgb(0, 0, 0),
-    })
-    y -= 30
-    // --- Grouped by Address (City/Area) ---
+    const titleWidth = bold.widthOfTextAtSize(reportTitle, 10)
+    page.drawText(reportTitle, { x: (pageWidth - titleWidth) / 2, y, size: 10, font: bold })
+
+    y -= 5
+
+    // Header Line
+    page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 1, color: rgb(0, 0, 0) })
+    y -= 15
+
+    // Table Headers
+    const col = {
+      no: left,
+      name: left + 65,
+      amount: left + 250,
+      received: left + 310,
+    }
+
+    const drawTableHead = (currentPage, currentY) => {
+      currentPage.drawLine({
+        start: { x: left, y: currentY + 10 },
+        end: { x: right, y: currentY + 10 },
+        thickness: 1,
+        color: rgb(0, 0, 0),
+      })
+      currentPage.drawText("Invoice No", { x: col.no, y: currentY, size: 8, font: bold })
+      currentPage.drawText("Party Name", { x: col.name, y: currentY, size: 8, font: bold })
+      currentPage.drawText("Amount", { x: col.amount, y: currentY, size: 8, font: bold })
+      currentPage.drawText("Received", { x: col.received, y: currentY, size: 8, font: bold })
+      currentPage.drawLine({
+        start: { x: left, y: currentY - 5 },
+        end: { x: right, y: currentY - 5 },
+        thickness: 1,
+        color: rgb(0, 0, 0),
+      })
+      return currentY - 15
+    }
+
+    y = drawTableHead(page, y)
+
     const groups = groupedBills()
     let grandTotal = 0
+
     for (const group of groups) {
-      // City/Area header
-      page.drawText(`City / Area: ${group.groupName}`, { x: left, y, size: 12, font: bold })
-      y -= 18
-      // Table header
-      page.drawText("Invoice No.", { x: col[0], y, size: 11, font: bold })
-      page.drawText("Party Name", { x: col[1], y, size: 11, font: bold })
-      page.drawText("Address", { x: col[2], y, size: 11, font: bold })
-      page.drawText("Amount", { x: col[3], y, size: 11, font: bold })
-      // page.drawText("Profit", { x: col[4], y, size: 11, font: bold })
-      y -= 14
-      page.drawLine({ start: { x: left, y }, end: { x: right + 50, y }, thickness: 0.5, color: rgb(0,0,0) })
-      y -= 8
+      // Check for page break before group header
+      if (y < 80) {
+        page = pdfDoc.addPage([pageWidth, pageHeight])
+        y = pageHeight - margin - 20
+        y = drawTableHead(page, y)
+      }
+
+      // Group Header (City / Area)
+      page.drawText("City / Area", { x: left, y, size: 8, font: bold })
+      page.drawText(group.groupName.toUpperCase(), { x: left + 65, y, size: 8, font: bold })
+      page.drawLine({
+        start: { x: left, y: y - 2 },
+        end: { x: right, y: y - 2 },
+        thickness: 1,
+        color: rgb(0, 0, 0),
+      })
+      y -= 12
+
       let areaTotal = 0
       for (const bill of group.bills) {
-        page.drawText(String(bill.billId ? bill.billId : bill._id), { x: col[0], y, size: 10, font })
-        page.drawText(bill.clientName || getClientName(bill.clientId), { x: col[1], y, size: 10, font })
-        page.drawText(bill.clientAddress || getClientAddress(bill.clientId), { x: col[2], y, size: 10, font })
-        page.drawText(bill.totalAmount ? bill.totalAmount.toFixed(2) : "0.00", { x: col[3], y, size: 10, font })
-        // page.drawText(calculateBillProfit(bill).toFixed(2), { x: col[4], y, size: 10, font })
+        // Check for page break before row
+        if (y < 60) {
+          page = pdfDoc.addPage([pageWidth, pageHeight])
+          y = pageHeight - margin - 20
+          y = drawTableHead(page, y)
+          // Re-draw group header on new page if it was in the middle of a group
+          page.drawText("City / Area", { x: left, y, size: 8, font: bold })
+          page.drawText(group.groupName.toUpperCase(), { x: left + 65, y, size: 8, font: bold })
+          page.drawLine({
+            start: { x: left, y: y - 2 },
+            end: { x: right, y: y - 2 },
+            thickness: 1,
+            color: rgb(0, 0, 0),
+          })
+          y -= 12
+        }
+
+        const billId = String(bill.billId || bill._id).substring(0, 10)
+        page.drawText(billId, { x: col.no, y, size: 8, font })
+
+        const clientName = (bill.clientName || getClientName(bill.clientId)).toUpperCase()
+        drawWrappedText(page, clientName, col.name, y, col.amount - col.name - 10, bold, 7, rgb(0, 0, 0), 1)
+
+        const amount = (bill.totalAmount || 0).toFixed(2)
+        const amountWidth = font.widthOfTextAtSize(amount, 8)
+        page.drawText(amount, { x: col.amount + 30 - amountWidth, y, size: 8, font })
+
         areaTotal += bill.totalAmount || 0
-        y -= 14
+        y -= 11
       }
-      // City/Area Total
+
+      // Group Footer
       y -= 2
-      page.drawText(`City / Area Total:`, { x: col[2], y, size: 11, font: bold })
-      page.drawText(areaTotal.toFixed(2), { x: col[3], y, size: 11, font: bold })
-      y -= 14
-      // page.drawText(`City / Area Profit:`, { x: col[2], y, size: 11, font: bold })
-      // page.drawText(group.totalProfit.toFixed(2), { x: col[4], y, size: 11, font: bold })
+      page.drawLine({
+        start: { x: left, y: y + 8 },
+        end: { x: right, y: y + 8 },
+        thickness: 0.5,
+        color: rgb(0, 0, 0),
+      })
+
+      page.drawText("Total Invoices of This Area:", { x: left + 5, y, size: 8, font: bold })
+      page.drawText(String(group.bills.length), { x: left + 120, y, size: 8, font: bold })
+
+      page.drawText("City / Area Total:", { x: left + 165, y, size: 8, font: bold })
+      const areaTotalStr = areaTotal.toFixed(2)
+      const areaTotalWidth = bold.widthOfTextAtSize(areaTotalStr, 8)
+      page.drawText(areaTotalStr, { x: col.amount + 30 - areaTotalWidth, y, size: 8, font: bold })
+
+      y -= 10
+      page.drawLine({
+        start: { x: left, y: y + 8 },
+        end: { x: right, y: y + 8 },
+        thickness: 1,
+        color: rgb(0, 0, 0),
+      })
+
       grandTotal += areaTotal
-      y -= 18
-      // Horizontal line after group
-      page.drawLine({ start: { x: left, y }, end: { x: right + 50, y }, thickness: 0.5, color: rgb(0,0,0) })
-      y -= 18
-      // Page break if needed
-      if (y < 100) {
-        page = pdfDoc.addPage([pageWidth, pageHeight])
-        y = 800
-      }
+      y -= 10
     }
-    // --- Grand Total at the end ---
+
+    // Grand Total
+    if (y < 50) {
+      page = pdfDoc.addPage([pageWidth, pageHeight])
+      y = pageHeight - margin - 20
+    }
+
     y -= 10
-    page.drawText("Total Amount:", { x: col[2], y, size: 12, font: bold })
-    page.drawText(grandTotal.toFixed(2), { x: col[3], y, size: 12, font: bold })
-    y -= 20
-    // page.drawText("Total Profit:", { x: col[2], y, size: 12, font: bold })
-    // page.drawText(calculateTotalProfit().toFixed(2), { x: col[4], y, size: 12, font: bold })
+    page.drawText("Total Amount:", { x: left + 150, y, size: 10, font: bold })
+    const grandTotalStr = grandTotal.toFixed(2)
+    const grandTotalWidth = bold.widthOfTextAtSize(grandTotalStr, 10)
+    page.drawText(grandTotalStr, { x: col.amount + 30 - grandTotalWidth, y, size: 10, font: bold })
+
     return await pdfDoc.save()
   }
 
