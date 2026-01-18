@@ -801,6 +801,42 @@ ipcMain.handle("clear-bills", async () => {
   })
 })
 
+// PDF Handling
+const { shell } = require("electron")
+const os = require("os")
+
+ipcMain.handle("open-pdf", async (event, pdfData) => {
+  return new Promise((resolve, reject) => {
+    try {
+      const tempDir = os.tmpdir()
+      const fileName = `invoice_${Date.now()}.pdf`
+      const filePath = path.join(tempDir, fileName)
+
+      const buffer = Buffer.from(pdfData, 'base64')
+
+      fs.writeFile(filePath, buffer, (err) => {
+        if (err) {
+          console.error("Error saving PDF:", err)
+          reject(err)
+          return
+        }
+
+        shell.openPath(filePath).then((errorMessage) => {
+          if (errorMessage) {
+            console.error("Error opening PDF:", errorMessage)
+            reject(errorMessage)
+          } else {
+            resolve(true)
+          }
+        })
+      })
+    } catch (error) {
+      console.error("Error in open-pdf handler:", error)
+      reject(error)
+    }
+  })
+})
+
 ipcMain.handle("update-existing-products-purchase-price", async () => {
   return new Promise((resolve, reject) => {
     // Find all products that don't have purchasePrice set
