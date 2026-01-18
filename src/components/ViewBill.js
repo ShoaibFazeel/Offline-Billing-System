@@ -177,26 +177,26 @@ function ViewBill() {
 
   const filteredClients = clientSearchTerm
     ? clients.filter(
-        (client) =>
-          client.clientName.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
-          client.clientNumber.includes(clientSearchTerm),
-      )
+      (client) =>
+        client.clientName.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
+        client.clientNumber.includes(clientSearchTerm),
+    )
     : clients
 
   const filteredFieldOfficers = fieldOfficerSearchTerm
     ? fieldOfficers.filter(
-        (officer) =>
-          officer.name.toLowerCase().includes(fieldOfficerSearchTerm.toLowerCase()) ||
-          officer.phoneNumber.includes(fieldOfficerSearchTerm),
-      )
+      (officer) =>
+        officer.name.toLowerCase().includes(fieldOfficerSearchTerm.toLowerCase()) ||
+        officer.phoneNumber.includes(fieldOfficerSearchTerm),
+    )
     : fieldOfficers
 
   const filteredSalesmen = salesmanSearchTerm
     ? salesmen.filter(
-        (salesman) =>
-          salesman.name.toLowerCase().includes(salesmanSearchTerm.toLowerCase()) ||
-          salesman.phoneNumber.includes(salesmanSearchTerm),
-      )
+      (salesman) =>
+        salesman.name.toLowerCase().includes(salesmanSearchTerm.toLowerCase()) ||
+        salesman.phoneNumber.includes(salesmanSearchTerm),
+    )
     : salesmen
 
   const getFilteredProducts = (index) => {
@@ -442,18 +442,30 @@ function ViewBill() {
     }
   }
 
-  // Print PDF
+  // Print PDF (Open in System Viewer)
   const printPDF = async () => {
     try {
       const pdfBytes = await generatePdfBytes()
       const blob = new Blob([pdfBytes], { type: "application/pdf" })
-      const blobUrl = URL.createObjectURL(blob)
-      const printWindow = window.open(blobUrl)
-      printWindow.onload = () => {
-        printWindow.focus()
-        printWindow.print()
+
+      const base64String = await new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result.split(',')[1])
+        reader.readAsDataURL(blob)
+      })
+
+      if (window.api && window.api.openPdf) {
+        await window.api.openPdf(base64String)
+        toast.success("Opening PDF...")
+      } else {
+        const blobUrl = URL.createObjectURL(blob)
+        const printWindow = window.open(blobUrl)
+        printWindow.onload = () => {
+          printWindow.focus()
+          printWindow.print()
+        }
+        toast.success("Print dialog opened")
       }
-      toast.success("Print dialog opened")
     } catch (error) {
       console.error("Error printing PDF:", error)
       toast.error("Failed to print PDF")
@@ -471,7 +483,7 @@ function ViewBill() {
       // Navigate back to bills list
       const sourcePage = localStorage.getItem("billSourcePage") || "bills"
       localStorage.removeItem("billSourcePage")
-      
+
       if (sourcePage === "dashboard") {
         window.location.hash = "#/"
       } else if (sourcePage === "reports") {
@@ -855,9 +867,8 @@ function ViewBill() {
                     {filteredClients.map((client, index) => (
                       <div
                         key={client._id}
-                        className={`p-2 hover:bg-gray-100 cursor-pointer client-dropdown-item ${
-                          index === selectedClientIndex ? "bg-blue-100" : ""
-                        }`}
+                        className={`p-2 hover:bg-gray-100 cursor-pointer client-dropdown-item ${index === selectedClientIndex ? "bg-blue-100" : ""
+                          }`}
                         onClick={() => handleClientSelect(client)}
                       >
                         <div className="font-medium">{client.clientName}</div>
@@ -935,9 +946,8 @@ function ViewBill() {
                     {filteredFieldOfficers.map((officer, index) => (
                       <div
                         key={officer._id}
-                        className={`p-2 hover:bg-gray-100 cursor-pointer field-officer-dropdown-item ${
-                          index === selectedFieldOfficerIndex ? "bg-blue-100" : ""
-                        }`}
+                        className={`p-2 hover:bg-gray-100 cursor-pointer field-officer-dropdown-item ${index === selectedFieldOfficerIndex ? "bg-blue-100" : ""
+                          }`}
                         onClick={() => handleFieldOfficerSelect(officer)}
                       >
                         <div className="font-medium">{officer.name}</div>
@@ -984,9 +994,8 @@ function ViewBill() {
                     {filteredSalesmen.map((salesman, index) => (
                       <div
                         key={salesman._id}
-                        className={`p-2 hover:bg-gray-100 cursor-pointer salesman-dropdown-item ${
-                          index === selectedSalesmanIndex ? "bg-blue-100" : ""
-                        }`}
+                        className={`p-2 hover:bg-gray-100 cursor-pointer salesman-dropdown-item ${index === selectedSalesmanIndex ? "bg-blue-100" : ""
+                          }`}
                         onClick={() => handleSalesmanSelect(salesman)}
                       >
                         <div className="font-medium">{salesman.name}</div>
@@ -1073,9 +1082,8 @@ function ViewBill() {
                             {getFilteredProducts(index).map((product, productIndex) => (
                               <div
                                 key={product._id}
-                                className={`p-2 hover:bg-gray-100 cursor-pointer ${
-                                  selectedProductIndex[index] === productIndex ? "bg-blue-100" : ""
-                                }`}
+                                className={`p-2 hover:bg-gray-100 cursor-pointer ${selectedProductIndex[index] === productIndex ? "bg-blue-100" : ""
+                                  }`}
                                 onClick={() => handleProductSelect(index, product)}
                               >
                                 <div className="font-medium">{product.productName}</div>
@@ -1199,9 +1207,8 @@ function ViewBill() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <button
                         onClick={() => toggleBonus(index)}
-                        className={`mr-2 px-2 py-1 rounded-md ${
-                          item.isBonus ? "bg-gray-200 hover:bg-gray-300" : "bg-green-100 hover:bg-green-200"
-                        }`}
+                        className={`mr-2 px-2 py-1 rounded-md ${item.isBonus ? "bg-gray-200 hover:bg-gray-300" : "bg-green-100 hover:bg-green-200"
+                          }`}
                       >
                         {item.isBonus ? "Regular" : "Bonus"}
                       </button>

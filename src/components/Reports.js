@@ -537,19 +537,31 @@ function Reports() {
     }
   }
 
-  // Print PDF
+  // Print PDF (Open in System Viewer)
   const printReportPdf = async () => {
     try {
       const pdfBytes = await generateReportPdfBytes()
       const blob = new Blob([pdfBytes], { type: "application/pdf" })
-      const blobUrl = URL.createObjectURL(blob)
-      const printWindow = window.open(blobUrl)
-      printWindow.onload = () => {
-        printWindow.focus()
-        printWindow.print()
+
+      const base64String = await new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result.split(',')[1])
+        reader.readAsDataURL(blob)
+      })
+
+      if (window.api && window.api.openPdf) {
+        await window.api.openPdf(base64String)
+        toast.success("Opening Report...")
+      } else {
+        const blobUrl = URL.createObjectURL(blob)
+        const printWindow = window.open(blobUrl)
+        printWindow.onload = () => {
+          printWindow.focus()
+          printWindow.print()
+        }
       }
     } catch (error) {
-      toast.error("Failed to print report")
+      toast.error("Failed to open report")
       console.error(error)
     }
   }

@@ -94,18 +94,18 @@ class PdfGenerator {
 
         const colY = y - 2
         // Right Aligned Numeric Columns
-        this._drawRightAlignedText(page, String(item.quantity), col[3] - 4, colY, 10, font, this.colors.black)
-        this._drawRightAlignedText(page, item.isBonus ? String(item.quantity) : "-", col[4] - 4, colY, 10, font, this.colors.black)
-        this._drawRightAlignedText(page, `${Math.round(item.rate)}`, col[5] - 4, colY, 10, font, this.colors.black)
+        this._drawRightAlignedText(page, String(item.quantity), col[3] - 10, colY, 10, font, this.colors.black)
+        this._drawRightAlignedText(page, item.isBonus ? String(item.quantity) : "-", col[4] - 8, colY, 10, font, this.colors.black)
+        this._drawRightAlignedText(page, `${Math.round(item.rate)}`, col[5] - 8, colY, 10, font, this.colors.black)
 
         if (showDiscountAsAmount) {
           const discAmt = (item.rate * item.quantity * (item.discount || 0)) / 100
-          this._drawRightAlignedText(page, `${Math.round(discAmt) !== 0 ? Math.round(discAmt) : "-"}`, col[6] - 4, colY, 10, font, this.colors.black)
+          this._drawRightAlignedText(page, `${Math.round(discAmt) !== 0 ? Math.round(discAmt) : "-"}`, col[6] - 11, colY, 10, font, this.colors.black)
         } else {
-          this._drawRightAlignedText(page, `${item.discount || "-"}${item.discount ? "%" : ""}`, col[6] - 4, colY, 10, font, this.colors.black)
+          this._drawRightAlignedText(page, `${item.discount || "-"}${item.discount ? "%" : ""}`, col[6] - 11, colY, 10, font, this.colors.black)
         }
 
-        this._drawRightAlignedText(page, `${Math.round(item.total)}`, right - 2, colY, 10, font, this.colors.black)
+        this._drawRightAlignedText(page, `${Math.round(item.total)}`, right - 5, colY, 10, font, this.colors.black)
 
         y -= Math.ceil(y - y2) + 1
       }
@@ -251,7 +251,7 @@ class PdfGenerator {
     page.drawText("Note:", { x: left + 5, y: footerY - 15, size: 8, font: bold })
     page.drawText(" (A) For dated (expired) items, Please inform 6 months before actual expiry date.", { x: left + 25, y: footerY - 15, size: 6, font })
     page.drawText(" (B) This warranty does not apply to the ayurvedic, general items, unani, food items mentioned in this cash memo/invoice.", { x: left + 25, y: footerY - 22, size: 6, font })
-    page.drawText("Designed By: Shoaib Fazeel B - 24/7 Hours Help Line (0347-8405935, 0307-6341160)", { x: left, y: footerY - 35, size: 7, font })
+    page.drawText("Designed By: Shoaib Fazeel Butt - 24/7 Hours Help Line (0347-8405935, 0307-6341160)", { x: left, y: footerY - 35, size: 7, font })
   }
 
   _drawRightAlignedText(page, text, xEnd, y, size, font, color) {
