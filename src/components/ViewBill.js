@@ -916,7 +916,7 @@ function ViewBill() {
                     className="p-1 border border-gray-300 rounded-md"
                   />
                 ) : (
-                  new Date(bill.billDate).toLocaleDateString()
+                  new Date(bill.billDate).toLocaleDateString("en-GB")
                 )}
               </div>
               <div>

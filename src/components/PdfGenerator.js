@@ -130,10 +130,11 @@ class PdfGenerator {
   }
 
   _drawHeader(page, companyInfo, y, font, bold) {
-    const companyName = companyInfo.companyName || "Company Name"
-    const companyAddress = companyInfo.companyAddress || "Address"
-    const companyOwner = companyInfo.ownerName || "Owner"
-    const companyOwnerPhone = companyInfo.ownerPhone || "Phone"
+    // Sanitize text to remove newlines that cause WinAnsi encoding errors
+    const companyName = (companyInfo.companyName || "Company Name").replace(/[\r\n]+/g, " ")
+    const companyAddress = (companyInfo.companyAddress || "Address").replace(/[\r\n]+/g, " ")
+    const companyOwner = (companyInfo.ownerName || "Owner").replace(/[\r\n]+/g, " ")
+    const companyOwnerPhone = (companyInfo.ownerPhone || "Phone").replace(/[\r\n]+/g, " ")
 
     const ownerText = `Owner: ${companyOwner} ${companyOwnerPhone}`
     const companyNameWidth = bold.widthOfTextAtSize(companyName, 15)
@@ -155,7 +156,7 @@ class PdfGenerator {
     const invoiceNo = `Invoice No: ${bill.billId ? bill.billId : bill._id}`
     const dateText = `Date: ${new Date(bill.billDate).toLocaleDateString("en-GB")}`
     const printDate = `Printing Date: ${now.toLocaleDateString("en-GB")}`
-    const printTime = `Printing Time: ${now.toLocaleTimeString()}`
+    const printTime = `Printing Time: ${now.toLocaleTimeString("en-GB")}`
     const today = new Date().toLocaleDateString("en-GB", { weekday: "long" })
 
     page.drawText(invoiceNo, { x: left, y, size: 10, font: bold })
