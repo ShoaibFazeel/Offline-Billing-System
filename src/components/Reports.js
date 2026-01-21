@@ -384,9 +384,9 @@ function Reports() {
     const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
 
     // --- Header Section ---
-    const companyName = companyInfo.companyName || "BHATTI DAWAKHANA"
-    const companyAddress = companyInfo.companyAddress || "Kachehri Road, Opposit Toyota Stand, Pasrur"
-    const ownerInfo = `HAKEEM SHAH NAWAZ BHATTI ${companyInfo.ownerPhone || "03007169315, 03187135940"}`
+    const companyName = (companyInfo.companyName || "Company Name").replace(/[\r\n]+/g, " ")
+    const companyAddress = (companyInfo.companyAddress || "Address").replace(/[\r\n]+/g, " ")
+    const ownerInfo = (`Owner Name ${companyInfo.ownerPhone || "Phone"}`).replace(/[\r\n]+/g, " ")
 
     // Centered Company Name
     const nameSize = 14
@@ -523,14 +523,14 @@ function Reports() {
         page.drawText(billId, { x: col.no, y, size: 8, font })
 
         const clientName = (bill.clientName || getClientName(bill.clientId)).toUpperCase()
-        drawWrappedText(page, clientName, col.name, y, col.amount - col.name - 10, bold, 7, rgb(0, 0, 0), 1)
+        const nextY = drawWrappedText(page, clientName, col.name, y, col.amount - col.name - 10, bold, 7, rgb(0, 0, 0), 1)
 
         const amount = (bill.totalAmount || 0).toFixed(2)
         const amountWidth = font.widthOfTextAtSize(amount, 8)
         page.drawText(amount, { x: col.amount + 30 - amountWidth, y, size: 8, font })
 
         areaTotal += bill.totalAmount || 0
-        y -= 11
+        y = Math.min(y - 11, nextY)
       }
 
       // Group Footer
@@ -600,9 +600,9 @@ function Reports() {
     const sanitize = (text) => (text || "").replace(/[\r\n]+/g, " ")
 
     // --- Header Section ---
-    const companyName = sanitize(companyInfo.companyName || "BHATTI DAWAKHANA")
-    const companyAddress = sanitize(companyInfo.companyAddress || "Kachehri Road, Opposit Toyota Stand, Pasrur")
-    const ownerInfo = sanitize(`HAKEEM SHAH NAWAZ BHATTI ${companyInfo.ownerPhone || "03007169315, 03187135940"}`)
+    const companyName = sanitize(companyInfo.companyName || "Company Name")
+    const companyAddress = sanitize(companyInfo.companyAddress || "Address")
+    const ownerInfo = sanitize(`Owner Name ${companyInfo.ownerPhone || "Phone"}`)
 
     // Centered Company Name
     const nameSize = 14
@@ -693,6 +693,7 @@ function Reports() {
 
     for (const item of itemData) {
       // Check for page break
+      y -= 4
       if (y < 80) {
         page = pdfDoc.addPage([pageWidth, pageHeight])
         y = pageHeight - margin - 20
@@ -706,10 +707,10 @@ function Reports() {
       page.drawText(dateStr, { x: col.date, y, size: 8, font })
 
       const partyName = sanitize(item.clientName).toUpperCase()
-      drawWrappedText(page, partyName, col.partyName, y, col.address - col.partyName - 5, font, 7, rgb(0, 0, 0), 1)
+      const partyNameY = drawWrappedText(page, partyName, col.partyName, y, col.address - col.partyName - 5, font, 7, rgb(0, 0, 0), 1)
 
       const address = sanitize(item.clientAddress).toUpperCase()
-      drawWrappedText(page, address, col.address, y, col.quantity - col.address - 5, font, 7, rgb(0, 0, 0), 1)
+      const addressY = drawWrappedText(page, address, col.address, y, col.quantity - col.address - 5, font, 7, rgb(0, 0, 0), 1)
 
       page.drawText(String(item.quantity), { x: col.quantity, y, size: 8, font })
 
@@ -720,7 +721,7 @@ function Reports() {
       totalQuantity += item.quantity
       totalAmount += item.amount
 
-      y -= 12
+      y = Math.min(partyNameY, addressY)
     }
 
     // Totals Section
@@ -733,8 +734,8 @@ function Reports() {
     page.drawLine({ start: { x: left, y: y + 10 }, end: { x: right, y: y + 10 }, thickness: 1, color: rgb(0, 0, 0) })
     page.drawLine({ start: { x: left, y: y + 9 }, end: { x: right, y: y + 9 }, thickness: 1, color: rgb(0, 0, 0) })
 
-    page.drawText("Total Amount :", { x: right - 150, y, size: 10, font: bold })
-    page.drawText(String(totalQuantity), { x: col.quantity, y, size: 10, font: bold })
+    page.drawText("Total Amount :", { x: right - 250, y, size: 10, font: bold })
+    page.drawText(String(totalQuantity), { x: col.address + 25, y, size: 10, font: bold })
     const totalAmountStr = totalAmount.toFixed(2)
     const totalAmountWidth = bold.widthOfTextAtSize(totalAmountStr, 10)
     page.drawText(totalAmountStr, { x: right - totalAmountWidth, y, size: 10, font: bold })
