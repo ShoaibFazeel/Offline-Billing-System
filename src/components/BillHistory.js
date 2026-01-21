@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import toast from "react-hot-toast"
+import configService from "../services/ConfigService"
 
 function BillHistory() {
   const [bills, setBills] = useState([])
@@ -54,12 +55,13 @@ function BillHistory() {
       (bill.billId ? String(bill.billId).includes(searchTerm) : bill._id.toLowerCase().includes(searchTerm.toLowerCase()))
 
     // Filter by date range
+    const billDateStr = bill.billDate ? new Date(bill.billDate).toISOString().split("T")[0] : ""
     let matchesDateRange = true
     if (dateFilter.from) {
-      matchesDateRange = matchesDateRange && new Date(bill.billDate) >= new Date(dateFilter.from)
+      matchesDateRange = matchesDateRange && billDateStr >= dateFilter.from
     }
     if (dateFilter.to) {
-      matchesDateRange = matchesDateRange && new Date(bill.billDate) <= new Date(dateFilter.to)
+      matchesDateRange = matchesDateRange && billDateStr <= dateFilter.to
     }
 
     return matchesSearch && matchesDateRange
@@ -140,7 +142,7 @@ function BillHistory() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{bill.clientName}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{bill.clientAddress}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(bill.billDate).toLocaleDateString()}
+                    {configService.formatDate(bill.billDate)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">PKR {bill.totalAmount.toFixed(2)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">

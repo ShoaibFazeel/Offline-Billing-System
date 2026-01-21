@@ -1,4 +1,5 @@
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib"
+import configService from "../services/ConfigService"
 
 /**
  * PDF Generator component for creating invoices.
@@ -33,6 +34,7 @@ class PdfGenerator {
       const pdfDoc = await PDFDocument.create()
       const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
       const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+      const italic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic)
 
       let page = pdfDoc.addPage([this.pageWidth, this.pageHeight])
       let pageNo = 1
@@ -44,7 +46,7 @@ class PdfGenerator {
 
       // --- HEADER & INFO ---
       y = this._drawHeader(page, companyInfo, y, font, bold)
-      y = this._drawInvoiceInfo(page, bill, client, fieldOfficer, salesman, y, font, bold, right, left)
+      y = this._drawInvoiceInfo(page, bill, client, fieldOfficer, salesman, y, font, bold, italic, right, left)
       y = this._drawTableHeader(page, y, col, font, bold, right, left)
 
       // --- TABLE ROWS ---
@@ -75,7 +77,7 @@ class PdfGenerator {
 
           page = pdfDoc.addPage([this.pageWidth, this.pageHeight])
           y = this.pageHeight - this.margin
-          y = this._drawInvoiceInfo(page, bill, client, fieldOfficer, salesman, y, font, bold, right, left)
+          y = this._drawInvoiceInfo(page, bill, client, fieldOfficer, salesman, y, font, bold, italic, right, left)
           y = this._drawTableHeader(page, y, col, font, bold, right, left)
         }
 
@@ -130,10 +132,11 @@ class PdfGenerator {
   }
 
   _drawHeader(page, companyInfo, y, font, bold) {
-    const companyName = companyInfo.companyName || "Company Name"
-    const companyAddress = companyInfo.companyAddress || "Address"
-    const companyOwner = companyInfo.ownerName || "Owner"
-    const companyOwnerPhone = companyInfo.ownerPhone || "Phone"
+    // Sanitize text to remove newlines that cause WinAnsi encoding errors
+    const companyName = (companyInfo.companyName || "Company Name").replace(/[\r\n]+/g, " ")
+    const companyAddress = (companyInfo.companyAddress || "Address").replace(/[\r\n]+/g, " ")
+    const companyOwner = (companyInfo.ownerName || "Owner").replace(/[\r\n]+/g, " ")
+    const companyOwnerPhone = (companyInfo.ownerPhone || "Phone").replace(/[\r\n]+/g, " ")
 
     const ownerText = `Owner: ${companyOwner} ${companyOwnerPhone}`
     const companyNameWidth = bold.widthOfTextAtSize(companyName, 15)
@@ -150,26 +153,26 @@ class PdfGenerator {
     return y - 10
   }
 
-  _drawInvoiceInfo(page, bill, client, fieldOfficer, salesman, y, font, bold, right, left) {
+  _drawInvoiceInfo(page, bill, client, fieldOfficer, salesman, y, font, bold, italic, right, left) {
     const now = new Date()
     const invoiceNo = `Invoice No: ${bill.billId ? bill.billId : bill._id}`
-    const dateText = `Date: ${new Date(bill.billDate).toLocaleDateString("en-GB")}`
-    const printDate = `Printing Date: ${now.toLocaleDateString("en-GB")}`
-    const printTime = `Printing Time: ${now.toLocaleTimeString()}`
-    const today = new Date().toLocaleDateString("en-GB", { weekday: "long" })
+    const dateText = `Date: ${configService.formatDate(bill.billDate)}`
+    const printDate = `${configService.formatDate(now)}`
+    const printTime = `${configService.formatTime(now)}`
+    const today = configService.formatDate(new Date(), { weekday: "short" })
 
     page.drawText(invoiceNo, { x: left, y, size: 10, font: bold })
-    page.drawText(dateText, { x: right - 120, y, size: 10, font })
+    page.drawText(dateText, { x: right - 160, y, size: 9, font })
     y -= 10
     page.drawText(`Name:`, { x: left, y, size: 10, font: bold })
     page.drawText(client.clientName || "N/A", { x: left + 50, y, size: 10, font: bold })
-    page.drawText(printDate, { x: right - 120, y, size: 10, font })
+    // page.drawText(printDate, { x: right - 120, y, size: 10, font })
     y -= 10
     page.drawText(`Address:`, { x: left, y, size: 10, font })
     page.drawText(client.clientAddress || "N/A", { x: left + 50, y, size: 10, font })
-    page.drawText(printTime, { x: right - 120, y, size: 10, font })
+    page.drawText("Print (Day - Date - Time)", { x: right - 160, y, size: 9, font: italic })
     y -= 10
-    page.drawText(`Day: ${today}`, { x: right - 120, y, size: 10, font })
+    page.drawText(`${today} - ${printDate} - ${printTime}`, { x: right - 160, y, size: 9, font: italic })
 
     if (client.clientNumber) {
       page.drawText(`Phone:`, { x: left, y, size: 10, font })

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import toast from "react-hot-toast"
+import configService from "../services/ConfigService"
 
 // Add this import at the top of the file
 import PdfGenerator from "./PdfGenerator"
@@ -916,7 +917,7 @@ function ViewBill() {
                     className="p-1 border border-gray-300 rounded-md"
                   />
                 ) : (
-                  new Date(bill.billDate).toLocaleDateString()
+                  configService.formatDate(bill.billDate)
                 )}
               </div>
               <div>

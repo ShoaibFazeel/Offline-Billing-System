@@ -100,7 +100,10 @@ const SearchBar = ({
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (inputRef.current && !inputRef.current.contains(event.target)) {
+      const isInsideInput = inputRef.current && inputRef.current.contains(event.target)
+      const isInsideDropdown = dropdownRef.current && dropdownRef.current.contains(event.target)
+
+      if (!isInsideInput && !isInsideDropdown) {
         setShowDropdown(false)
       }
     }
