@@ -773,6 +773,39 @@ ipcMain.handle("update-company-info", async (event, companyInfo) => {
   })
 })
 
+ipcMain.handle("get-app-config", async () => {
+  return new Promise((resolve, reject) => {
+    db.settings.findOne({ type: "app-config" }, (err, appConfig) => {
+      if (err) reject(err)
+      else {
+        // Return default values if no config exists
+        if (!appConfig) {
+          resolve({
+            locale: "en-GB",
+            timezone: "UTC",
+          })
+        } else {
+          resolve(appConfig)
+        }
+      }
+    })
+  })
+})
+
+ipcMain.handle("update-app-config", async (event, appConfig) => {
+  return new Promise((resolve, reject) => {
+    db.settings.update(
+      { type: "app-config" },
+      { ...appConfig, type: "app-config" },
+      { upsert: true },
+      (err, numReplaced) => {
+        if (err) reject(err)
+        else resolve(numReplaced)
+      },
+    )
+  })
+})
+
 // Database Management
 ipcMain.handle("clear-products", async () => {
   return new Promise((resolve, reject) => {

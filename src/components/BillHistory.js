@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import toast from "react-hot-toast"
+import configService from "../services/ConfigService"
 
 function BillHistory() {
   const [bills, setBills] = useState([])
@@ -141,7 +142,7 @@ function BillHistory() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{bill.clientName}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{bill.clientAddress}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(bill.billDate).toLocaleDateString("en-GB")}
+                    {configService.formatDate(bill.billDate)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">PKR {bill.totalAmount.toFixed(2)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">

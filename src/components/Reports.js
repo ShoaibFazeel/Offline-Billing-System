@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import toast from "react-hot-toast"
 import GeneratePdfButton from "./GeneratePdfButton"
 import SearchBar from "./SearchBar"
+import configService from "../services/ConfigService"
 
 function Reports() {
   const [bills, setBills] = useState([])
@@ -314,7 +315,7 @@ function Reports() {
 
       filteredBills.forEach((bill) => {
         const date = new Date(bill.billDate)
-        const monthYear = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+        const monthYear = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`
 
         if (!groups[monthYear]) {
           groups[monthYear] = []
@@ -431,7 +432,7 @@ function Reports() {
     const dateLabelWidth = bold.widthOfTextAtSize(dateLabel, 7)
     page.drawText(dateLabel, { x: boxX + (boxWidth - dateLabelWidth) / 2, y: boxY - 8, size: 7, font: bold })
 
-    const dateValue = new Date().toLocaleDateString("en-GB")
+    const dateValue = configService.formatDate(new Date())
     const dateValueWidth = font.widthOfTextAtSize(dateValue, 8)
     page.drawText(dateValue, { x: boxX + (boxWidth - dateValueWidth) / 2, y: boxY - 20, size: 8, font })
 
@@ -701,7 +702,7 @@ function Reports() {
       const invoiceNo = String(item.billId).substring(0, 10)
       page.drawText(invoiceNo, { x: col.invoiceNo, y, size: 8, font })
 
-      const dateStr = new Date(item.billDate).toLocaleDateString("en-GB")
+      const dateStr = configService.formatDate(item.billDate)
       page.drawText(dateStr, { x: col.date, y, size: 8, font })
 
       const partyName = sanitize(item.clientName).toUpperCase()
@@ -1057,7 +1058,7 @@ function Reports() {
                   {getItemReportData().map((item, idx) => (
                     <tr key={idx}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">#{item.billId}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(item.billDate).toLocaleDateString("en-GB")}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{configService.formatDate(item.billDate)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.clientName}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.clientAddress}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.quantity}</td>

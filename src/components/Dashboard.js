@@ -5,6 +5,7 @@ import { Link } from "react-router-dom"
 import { useDashboardStats } from "../hooks/useLazyData"
 import { useLazyData } from "../hooks/useLazyData"
 import dataService from "../services/DataService"
+import configService from "../services/ConfigService"
 
 function Dashboard() {
   // Use the dashboard stats hook
@@ -270,7 +271,7 @@ function Dashboard() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{bill.clientName}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(bill.billDate).toLocaleDateString("en-GB")}
+                      {configService.formatDate(bill.billDate)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       PKR {bill.totalAmount.toFixed(2)}

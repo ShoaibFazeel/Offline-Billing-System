@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import toast from "react-hot-toast"
+import configService from "../services/ConfigService"
 
 function Settings() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -19,6 +20,10 @@ function Settings() {
     managerName: "",
     managerPhone: "",
   })
+  const [appConfig, setAppConfig] = useState({
+    locale: "en-GB",
+    timezone: "UTC",
+  })
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -31,6 +36,9 @@ function Settings() {
     // Fetch company info
     fetchCompanyInfo()
 
+    // Fetch app config
+    fetchAppConfig()
+
     setIsLoading(false)
   }, [])
 
@@ -42,6 +50,17 @@ function Settings() {
       }
     } catch (error) {
       console.error("Error fetching company info:", error)
+    }
+  }
+
+  const fetchAppConfig = async () => {
+    try {
+      const config = await configService.getConfig()
+      if (config) {
+        setAppConfig(config)
+      }
+    } catch (error) {
+      console.error("Error fetching app config:", error)
     }
   }
 
@@ -116,6 +135,30 @@ function Settings() {
     } catch (error) {
       console.error("Error saving company info:", error)
       toast.error("Failed to save company information")
+    }
+  }
+
+  const handleAppConfigChange = (e) => {
+    const { name, value } = e.target
+    setAppConfig({
+      ...appConfig,
+      [name]: value,
+    })
+  }
+
+  const saveAppConfig = async (e) => {
+    e.preventDefault()
+    try {
+      const success = await configService.updateConfig(appConfig)
+      if (success) {
+        toast.success("Application configuration saved successfully")
+        toast.info("Application will reflect changes on next interaction.")
+      } else {
+        toast.error("Failed to save application configuration")
+      }
+    } catch (error) {
+      console.error("Error saving app config:", error)
+      toast.error("Failed to save application configuration")
     }
   }
 
@@ -365,36 +408,39 @@ function Settings() {
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="flex border-b">
           <button
-            className={`px-4 py-3 font-medium ${
-              activeTab === "account" ? "bg-blue-50 text-blue-600 border-b-2 border-blue-600" : "text-gray-600"
-            }`}
+            className={`px-4 py-3 font-medium ${activeTab === "account" ? "bg-blue-50 text-blue-600 border-b-2 border-blue-600" : "text-gray-600"
+              }`}
             onClick={() => setActiveTab("account")}
           >
             Account
           </button>
           <button
-            className={`px-4 py-3 font-medium ${
-              activeTab === "company" ? "bg-blue-50 text-blue-600 border-b-2 border-blue-600" : "text-gray-600"
-            }`}
+            className={`px-4 py-3 font-medium ${activeTab === "company" ? "bg-blue-50 text-blue-600 border-b-2 border-blue-600" : "text-gray-600"
+              }`}
             onClick={() => setActiveTab("company")}
           >
             Company Information
           </button>
           <button
-            className={`px-4 py-3 font-medium ${
-              activeTab === "database" ? "bg-blue-50 text-blue-600 border-b-2 border-blue-600" : "text-gray-600"
-            }`}
+            className={`px-4 py-3 font-medium ${activeTab === "database" ? "bg-blue-50 text-blue-600 border-b-2 border-blue-600" : "text-gray-600"
+              }`}
             onClick={() => setActiveTab("database")}
           >
             Database Management
           </button>
           <button
-            className={`px-4 py-3 font-medium ${
-              activeTab === "backup" ? "bg-blue-50 text-blue-600 border-b-2 border-blue-600" : "text-gray-600"
-            }`}
+            className={`px-4 py-3 font-medium ${activeTab === "backup" ? "bg-blue-50 text-blue-600 border-b-2 border-blue-600" : "text-gray-600"
+              }`}
             onClick={() => setActiveTab("backup")}
           >
             Backup & Restore
+          </button>
+          <button
+            className={`px-4 py-3 font-medium ${activeTab === "application" ? "bg-blue-50 text-blue-600 border-b-2 border-blue-600" : "text-gray-600"
+              }`}
+            onClick={() => setActiveTab("application")}
+          >
+            Application
           </button>
         </div>
 
@@ -698,6 +744,68 @@ function Settings() {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+          {activeTab === "application" && (
+            <div>
+              <h2 className="text-xl font-semibold mb-4">Application Settings</h2>
+              <form onSubmit={saveAppConfig} className="space-y-4 max-w-md">
+                <div>
+                  <label htmlFor="locale" className="block text-sm font-medium text-gray-700 mb-1">
+                    Date & Time Locale
+                  </label>
+                  <select
+                    id="locale"
+                    name="locale"
+                    value={appConfig.locale}
+                    onChange={handleAppConfigChange}
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                  >
+                    <option value="en-GB">British English (DD/MM/YYYY)</option>
+                    <option value="en-US">US English (MM/DD/YYYY)</option>
+                    <option value="en-PK">Pakistan English (DD/MM/YYYY)</option>
+                    <option value="ur-PK">Urdu (Pakistan)</option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Determines the format of dates (e.g., 21/01/2026 vs 01/21/2026).
+                  </p>
+                </div>
+                <div>
+                  <label htmlFor="timezone" className="block text-sm font-medium text-gray-700 mb-1">
+                    Application Timezone
+                  </label>
+                  <select
+                    id="timezone"
+                    name="timezone"
+                    value={appConfig.timezone}
+                    onChange={handleAppConfigChange}
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                  >
+                    <option value="UTC">UTC (Universal Coordinated Time)</option>
+                    <option value="Asia/Karachi">Asia/Karachi (Pakistan Standard Time)</option>
+                    <option value="Asia/Dubai">Asia/Dubai (UAE)</option>
+                    <option value="Europe/London">Europe/London (GMT/BST)</option>
+                    <option value="America/New_York">America/New_York (EST/EDT)</option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Fixes the application time regardless of your computer's local settings.
+                  </p>
+                </div>
+                <div>
+                  <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md">
+                    Save Application Settings
+                  </button>
+                </div>
+                <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+                  <h4 className="text-sm font-bold text-yellow-800 mb-1">Preview</h4>
+                  <p className="text-sm text-yellow-700">
+                    Current date format: {new Date().toLocaleDateString(appConfig.locale, { timeZone: appConfig.timezone })}
+                  </p>
+                  <p className="text-sm text-yellow-700">
+                    Current time format: {new Date().toLocaleTimeString(appConfig.locale, { timeZone: appConfig.timezone })}
+                  </p>
+                </div>
+              </form>
             </div>
           )}
         </div>

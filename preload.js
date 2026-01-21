@@ -61,4 +61,7 @@ contextBridge.exposeInMainWorld("api", {
 
   // PDF Handling
   openPdf: (pdfData) => ipcRenderer.invoke("open-pdf", pdfData),
+  // Application Configuration
+  getAppConfig: () => ipcRenderer.invoke("get-app-config"),
+  updateAppConfig: (config) => ipcRenderer.invoke("update-app-config", config),
 })

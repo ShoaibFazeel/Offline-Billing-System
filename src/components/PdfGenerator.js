@@ -1,4 +1,5 @@
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib"
+import configService from "../services/ConfigService"
 
 /**
  * PDF Generator component for creating invoices.
@@ -154,10 +155,10 @@ class PdfGenerator {
   _drawInvoiceInfo(page, bill, client, fieldOfficer, salesman, y, font, bold, right, left) {
     const now = new Date()
     const invoiceNo = `Invoice No: ${bill.billId ? bill.billId : bill._id}`
-    const dateText = `Date: ${new Date(bill.billDate).toLocaleDateString("en-GB")}`
-    const printDate = `Printing Date: ${now.toLocaleDateString("en-GB")}`
-    const printTime = `Printing Time: ${now.toLocaleTimeString("en-GB")}`
-    const today = new Date().toLocaleDateString("en-GB", { weekday: "long" })
+    const dateText = `Date: ${configService.formatDate(bill.billDate)}`
+    const printDate = `Printing Date: ${configService.formatDate(now)}`
+    const printTime = `Printing Time: ${configService.formatTime(now)}`
+    const today = configService.formatDate(new Date(), { weekday: "long" })
 
     page.drawText(invoiceNo, { x: left, y, size: 10, font: bold })
     page.drawText(dateText, { x: right - 120, y, size: 10, font })
