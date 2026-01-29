@@ -85,7 +85,11 @@ function Reports() {
 
       setBills(billsData)
       setClients(clientsData)
-      setProducts(productsData)
+      const newProductData = productsData.map((product) => ({
+        ...product,
+        productNameForDropDown: `${product.productName} - ${product.companyName}`,
+      }));
+      setProducts(newProductData)
 
       // Extract unique addresses from clients
       const uniqueAddresses = [...new Set(clientsData.map((client) => client.clientAddress))]
@@ -382,11 +386,13 @@ function Reports() {
 
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
     const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+    const italic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic)
+    const boldItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanBoldItalic)
 
     // --- Header Section ---
     const companyName = (companyInfo.companyName || "Company Name").replace(/[\r\n]+/g, " ")
     const companyAddress = (companyInfo.companyAddress || "Address").replace(/[\r\n]+/g, " ")
-    const ownerInfo = (`Owner Name ${companyInfo.ownerPhone || "Phone"}`).replace(/[\r\n]+/g, " ")
+    const ownerInfo = (`Owner: ${companyInfo.ownerName || ""} ${companyInfo.ownerPhone || "Phone"}`).replace(/[\r\n]+/g, " ")
 
     // Centered Company Name
     const nameSize = 14
@@ -396,8 +402,8 @@ function Reports() {
 
     // Centered Address
     const addrSize = 8
-    const addrWidth = font.widthOfTextAtSize(companyAddress, addrSize)
-    page.drawText(companyAddress, { x: (pageWidth - addrWidth) / 2, y, size: addrSize, font })
+    const addrWidth = bold.widthOfTextAtSize(companyAddress, addrSize)
+    page.drawText(companyAddress, { x: (pageWidth - addrWidth) / 2, y, size: addrSize, font: bold })
     y -= 12
 
     // Centered & Underlined Owner Info
@@ -463,10 +469,10 @@ function Reports() {
         thickness: 1,
         color: rgb(0, 0, 0),
       })
-      currentPage.drawText("Invoice No", { x: col.no, y: currentY, size: 8, font: bold })
-      currentPage.drawText("Party Name", { x: col.name, y: currentY, size: 8, font: bold })
-      currentPage.drawText("Amount", { x: col.amount, y: currentY, size: 8, font: bold })
-      currentPage.drawText("Received", { x: col.received, y: currentY, size: 8, font: bold })
+      currentPage.drawText("Invoice No", { x: col.no, y: currentY, size: 8, font: boldItalic })
+      currentPage.drawText("Party Name", { x: col.name, y: currentY, size: 8, font: boldItalic })
+      currentPage.drawText("Amount", { x: col.amount, y: currentY, size: 8, font: boldItalic })
+      currentPage.drawText("Received", { x: col.received, y: currentY, size: 8, font: boldItalic })
       currentPage.drawLine({
         start: { x: left, y: currentY - 5 },
         end: { x: right, y: currentY - 5 },
@@ -490,8 +496,8 @@ function Reports() {
       }
 
       // Group Header (City / Area)
-      page.drawText("City / Area", { x: left, y, size: 8, font: bold })
-      page.drawText(group.groupName.toUpperCase(), { x: left + 65, y, size: 8, font: bold })
+      page.drawText("City / Area", { x: left, y, size: 8, font: boldItalic })
+      page.drawText(group.groupName.toUpperCase(), { x: left + 65, y, size: 10, font: boldItalic })
       page.drawLine({
         start: { x: left, y: y - 2 },
         end: { x: right, y: y - 2 },
@@ -508,8 +514,8 @@ function Reports() {
           y = pageHeight - margin - 20
           y = drawTableHead(page, y)
           // Re-draw group header on new page if it was in the middle of a group
-          page.drawText("City / Area", { x: left, y, size: 8, font: bold })
-          page.drawText(group.groupName.toUpperCase(), { x: left + 65, y, size: 8, font: bold })
+          page.drawText("City / Area", { x: left, y, size: 8, font: boldItalic })
+          page.drawText(group.groupName.toUpperCase(), { x: left + 65, y, size: 10, font: boldItalic })
           page.drawLine({
             start: { x: left, y: y - 2 },
             end: { x: right, y: y - 2 },
@@ -520,14 +526,14 @@ function Reports() {
         }
 
         const billId = String(bill.billId || bill._id).substring(0, 10)
-        page.drawText(billId, { x: col.no, y, size: 8, font })
+        page.drawText(billId, { x: col.no, y, size: 8, font: italic })
 
         const clientName = (bill.clientName || getClientName(bill.clientId)).toUpperCase()
-        const nextY = drawWrappedText(page, clientName, col.name, y, col.amount - col.name - 10, bold, 7, rgb(0, 0, 0), 1)
+        const nextY = drawWrappedText(page, clientName, col.name, y, col.amount - col.name - 10, boldItalic, 7, rgb(0, 0, 0), 1)
 
-        const amount = (bill.totalAmount || 0).toFixed(2)
+        const amount = `${Math.round(bill.totalAmount || 0)}`
         const amountWidth = font.widthOfTextAtSize(amount, 8)
-        page.drawText(amount, { x: col.amount + 30 - amountWidth, y, size: 8, font })
+        page.drawText(`${amount}.00`, { x: col.amount + 30 - amountWidth, y, size: 8, font: italic })
 
         areaTotal += bill.totalAmount || 0
         y = Math.min(y - 11, nextY)
@@ -542,13 +548,13 @@ function Reports() {
         color: rgb(0, 0, 0),
       })
 
-      page.drawText("Total Invoices of This Area:", { x: left + 5, y, size: 8, font: bold })
-      page.drawText(String(group.bills.length), { x: left + 120, y, size: 8, font: bold })
+      page.drawText("Total Invoices of This Area:", { x: left + 5, y, size: 8, font: boldItalic })
+      page.drawText(String(group.bills.length), { x: left + 120, y, size: 8, font: boldItalic })
 
-      page.drawText("City / Area Total:", { x: left + 165, y, size: 8, font: bold })
-      const areaTotalStr = areaTotal.toFixed(2)
+      page.drawText("City / Area Total:", { x: left + 165, y, size: 8, font: boldItalic })
+      const areaTotalStr = `${Math.round(areaTotal)}`
       const areaTotalWidth = bold.widthOfTextAtSize(areaTotalStr, 8)
-      page.drawText(areaTotalStr, { x: col.amount + 30 - areaTotalWidth, y, size: 8, font: bold })
+      page.drawText(`${areaTotalStr}.00`, { x: col.amount + 30 - areaTotalWidth, y, size: 8, font: boldItalic })
 
       y -= 10
       page.drawLine({
@@ -559,7 +565,7 @@ function Reports() {
       })
 
       grandTotal += areaTotal
-      y -= 10
+      y -= 5
     }
 
     // Grand Total
@@ -568,11 +574,11 @@ function Reports() {
       y = pageHeight - margin - 20
     }
 
-    y -= 10
-    page.drawText("Total Amount:", { x: left + 150, y, size: 10, font: bold })
-    const grandTotalStr = grandTotal.toFixed(2)
+    y -= 5
+    page.drawText("Total Amount:", { x: left + 150, y, size: 10, font: boldItalic })
+    const grandTotalStr = `${Math.round(grandTotal)}`
     const grandTotalWidth = bold.widthOfTextAtSize(grandTotalStr, 10)
-    page.drawText(grandTotalStr, { x: col.amount + 30 - grandTotalWidth, y, size: 10, font: bold })
+    page.drawText(`${grandTotalStr}.00`, { x: col.amount + 30 - grandTotalWidth, y, size: 10, font: boldItalic })
 
     return await pdfDoc.save()
   }
@@ -595,6 +601,8 @@ function Reports() {
 
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
     const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+    const italic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic)
+    const boldItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanBoldItalic)
 
     // Sanitize text to remove newlines
     const sanitize = (text) => (text || "").replace(/[\r\n]+/g, " ")
@@ -602,7 +610,7 @@ function Reports() {
     // --- Header Section ---
     const companyName = sanitize(companyInfo.companyName || "Company Name")
     const companyAddress = sanitize(companyInfo.companyAddress || "Address")
-    const ownerInfo = sanitize(`Owner Name ${companyInfo.ownerPhone || "Phone"}`)
+    const ownerInfo = sanitize(`Owner: ${companyInfo.ownerName || ""} ${companyInfo.ownerPhone || "Phone"}`)
 
     // Centered Company Name
     const nameSize = 14
@@ -612,8 +620,8 @@ function Reports() {
 
     // Centered Address
     const addrSize = 8
-    const addrWidth = font.widthOfTextAtSize(companyAddress, addrSize)
-    page.drawText(companyAddress, { x: (pageWidth - addrWidth) / 2, y, size: addrSize, font })
+    const addrWidth = bold.widthOfTextAtSize(companyAddress, addrSize)
+    page.drawText(companyAddress, { x: (pageWidth - addrWidth) / 2, y, size: addrSize, font: bold })
     y -= 12
 
     // Centered & Underlined Owner Info
@@ -621,13 +629,9 @@ function Reports() {
     const ownerWidth = bold.widthOfTextAtSize(ownerInfo, ownerSize)
     const ownerX = (pageWidth - ownerWidth) / 2
     page.drawText(ownerInfo, { x: ownerX, y, size: ownerSize, font: bold })
-    page.drawLine({
-      start: { x: ownerX, y: y - 2 },
-      end: { x: ownerX + ownerWidth, y: y - 2 },
-      thickness: 0.5,
-      color: rgb(0, 0, 0),
-    })
-    y -= 20
+    y -= 2
+    page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 1, color: rgb(0, 0, 0) })
+    y -= 2
 
     // Header Line
     page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 1, color: rgb(0, 0, 0) })
@@ -641,11 +645,12 @@ function Reports() {
 
     // Product Name and Packing
     const productName = sanitize(selectedProductObj?.productName || "N/A")
+    const productCompany = sanitize(selectedProductObj?.companyName || "N/A")
     const packing = sanitize(selectedProductObj?.containerSize || "")
-    page.drawText(`Product Name ${productName}`, { x: left, y, size: 9, font: bold })
+    page.drawText(`Product Name ${productName} (${productCompany})`, { x: left, y, size: 9, font: boldItalic })
     y -= 10
     if (packing) {
-      page.drawText(`Packing : ${packing}`, { x: left, y, size: 9, font })
+      page.drawText(`Packing : ${packing}`, { x: left, y, size: 9, font: italic })
       y -= 10
     }
 
@@ -670,12 +675,12 @@ function Reports() {
         thickness: 1,
         color: rgb(0, 0, 0),
       })
-      currentPage.drawText("Invoice No.", { x: col.invoiceNo, y: currentY, size: 8, font: bold })
-      currentPage.drawText("Date", { x: col.date, y: currentY, size: 8, font: bold })
-      currentPage.drawText("Party Name", { x: col.partyName, y: currentY, size: 8, font: bold })
-      currentPage.drawText("Address", { x: col.address, y: currentY, size: 8, font: bold })
-      currentPage.drawText("Qty", { x: col.quantity, y: currentY, size: 8, font: bold })
-      currentPage.drawText("Amount", { x: col.amount, y: currentY, size: 8, font: bold })
+      currentPage.drawText("Invoice No.", { x: col.invoiceNo, y: currentY, size: 8, font: boldItalic })
+      currentPage.drawText("Date", { x: col.date, y: currentY, size: 8, font: boldItalic })
+      currentPage.drawText("Party Name", { x: col.partyName, y: currentY, size: 8, font: boldItalic })
+      currentPage.drawText("Address", { x: col.address, y: currentY, size: 8, font: boldItalic })
+      currentPage.drawText("Qty", { x: col.quantity, y: currentY, size: 8, font: boldItalic })
+      currentPage.drawText("Amount", { x: col.amount, y: currentY, size: 8, font: boldItalic })
       currentPage.drawLine({
         start: { x: left, y: currentY - 5 },
         end: { x: right, y: currentY - 5 },
@@ -701,22 +706,22 @@ function Reports() {
       }
 
       const invoiceNo = String(item.billId).substring(0, 10)
-      page.drawText(invoiceNo, { x: col.invoiceNo, y, size: 8, font })
+      page.drawText(invoiceNo, { x: col.invoiceNo, y, size: 8, font: italic })
 
       const dateStr = configService.formatDate(item.billDate)
-      page.drawText(dateStr, { x: col.date, y, size: 8, font })
+      page.drawText(dateStr, { x: col.date, y, size: 8, font: italic })
 
       const partyName = sanitize(item.clientName).toUpperCase()
-      const partyNameY = drawWrappedText(page, partyName, col.partyName, y, col.address - col.partyName - 5, font, 7, rgb(0, 0, 0), 1)
+      const partyNameY = drawWrappedText(page, partyName, col.partyName, y, col.address - col.partyName - 5, italic, 7, rgb(0, 0, 0), 1)
 
       const address = sanitize(item.clientAddress).toUpperCase()
-      const addressY = drawWrappedText(page, address, col.address, y, col.quantity - col.address - 5, font, 7, rgb(0, 0, 0), 1)
+      const addressY = drawWrappedText(page, address, col.address, y, col.quantity - col.address - 5, italic, 7, rgb(0, 0, 0), 1)
 
-      page.drawText(String(item.quantity), { x: col.quantity, y, size: 8, font })
+      page.drawText(String(item.quantity), { x: col.quantity, y, size: 8, font: italic })
 
-      const amountStr = item.amount.toFixed(2)
+      const amountStr = `${Math.round(item.amount)}`
       const amountWidth = font.widthOfTextAtSize(amountStr, 8)
-      page.drawText(amountStr, { x: right - amountWidth, y, size: 8, font })
+      page.drawText(`${amountStr}.00`, { x: (right - amountWidth) - 5, y, size: 8, font: italic })
 
       totalQuantity += item.quantity
       totalAmount += item.amount
@@ -734,11 +739,11 @@ function Reports() {
     page.drawLine({ start: { x: left, y: y + 10 }, end: { x: right, y: y + 10 }, thickness: 1, color: rgb(0, 0, 0) })
     page.drawLine({ start: { x: left, y: y + 9 }, end: { x: right, y: y + 9 }, thickness: 1, color: rgb(0, 0, 0) })
 
-    page.drawText("Total Amount :", { x: right - 250, y, size: 10, font: bold })
-    page.drawText(String(totalQuantity), { x: col.address + 25, y, size: 10, font: bold })
-    const totalAmountStr = totalAmount.toFixed(2)
+    page.drawText("Total Amount :", { x: right - 250, y, size: 10, font: boldItalic })
+    page.drawText(String(totalQuantity), { x: col.address + 30, y, size: 10, font: boldItalic })
+    const totalAmountStr = `${Math.round(totalAmount)}`
     const totalAmountWidth = bold.widthOfTextAtSize(totalAmountStr, 10)
-    page.drawText(totalAmountStr, { x: right - totalAmountWidth, y, size: 10, font: bold })
+    page.drawText(`${totalAmountStr}.00`, { x: right - totalAmountWidth, y, size: 10, font: boldItalic })
 
     return await pdfDoc.save()
   }
@@ -866,7 +871,7 @@ function Reports() {
               <SearchBar
                 placeholder="Search product..."
                 items={products}
-                displayProperty="productName"
+                displayProperty="productNameForDropDown"
                 onSelect={handleProductSelect}
                 initialValue={selectedProduct}
                 searchTerm={selectedProduct}
