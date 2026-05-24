@@ -144,20 +144,39 @@ function ViewBill() {
     setSalesmanSearchTerm("")
   }
 
-  const handleProductSelect = (index, product) => {
+  const handleProductSelect = async (index, product) => {
+    let rate = product.productPrice
+    let discount = 0
+    let extraDiscount = 0
+
+    if (editedBill.clientId) {
+      try {
+        const clientProduct = await window.api.getClientProduct(editedBill.clientId, product._id)
+        if (clientProduct) {
+          rate = clientProduct.rate
+          discount = clientProduct.discount
+          extraDiscount = clientProduct.extraDiscount || 0
+        }
+      } catch (error) {
+        console.error("Error fetching client-product history:", error)
+      }
+    }
+
     const updatedItems = [...editedBill.items]
     updatedItems[index] = {
       ...updatedItems[index],
       productId: product._id,
       productName: product.productName,
-      rate: product.productPrice,
+      rate: rate,
+      discount: discount,
+      extraDiscount: extraDiscount,
       availableQuantity: product.hasInfiniteQuantity !== false ? Number.POSITIVE_INFINITY : product.quantity,
       hasInfiniteQuantity: product.hasInfiniteQuantity !== false,
       total: calculateItemTotal(
         updatedItems[index].quantity,
-        product.productPrice,
-        updatedItems[index].discount,
-        updatedItems[index].extraDiscount,
+        rate,
+        discount,
+        extraDiscount,
       ),
     }
 
@@ -1105,16 +1124,29 @@ function ViewBill() {
                             ))}
                           </div>
                         )}
-                        {item.productId && (
-                          <div className="mt-1 p-1 bg-gray-50 rounded-md">
-                            <div className="font-medium">
-                              {products.find((p) => p._id === item.productId)?.productName}
+                        {item.productId && (() => {
+                          const product = products.find((p) => p._id === item.productId);
+
+                          return (
+                            <div className="mt-1 p-1 bg-gray-50 rounded-md">
+                              <div className="font-medium">
+                                {product?.productName}
+                              </div>
+
+                              <div className="text-sm text-gray-500">
+                                {product?.companyName}
+                              </div>
+
+                              <div className="text-sm text-gray-500">
+                                {product?.containerSize}
+                              </div>
+
+                              <div className="text-sm text-gray-500">
+                                PKR {product?.productPrice?.toFixed(2)}
+                              </div>
                             </div>
-                            <div className="text-sm text-gray-500">
-                              PKR {products.find((p) => p._id === item.productId)?.productPrice.toFixed(2)}
-                            </div>
-                          </div>
-                        )}
+                          );
+                        })()}
                       </div>
                     ) : (
                       item.productName
