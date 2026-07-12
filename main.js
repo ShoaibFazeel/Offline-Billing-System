@@ -634,13 +634,27 @@ ipcMain.handle("import-salesmen", async (event, salesmen) => {
 // BILLS
 // ─────────────────────────────────────────────────────────────────
 ipcMain.handle("get-bills", async (event, opts = {}) => {
-  const { search = "", limit = 0, offset = 0 } = opts || {}
-  let fromWhere = "FROM bills"
+  const { search = "", limit = 0, offset = 0, fromDate = "", toDate = "" } = opts || {}
+  const whereClauses = []
   const params = []
+
   if (search) {
-    fromWhere += " WHERE clientName LIKE ? OR CAST(billId AS TEXT) LIKE ?"
+    whereClauses.push("(clientName LIKE ? OR CAST(billId AS TEXT) LIKE ?)")
     params.push(`%${search}%`, `%${search}%`)
   }
+
+  if (fromDate) {
+    whereClauses.push("billDate >= ?")
+    params.push(fromDate)
+  }
+
+  if (toDate) {
+    whereClauses.push("billDate <= ?")
+    params.push(toDate)
+  }
+
+  const fromWhere = `FROM bills${whereClauses.length ? ` WHERE ${whereClauses.join(" AND ")}` : ""}`
+
   return queryPaginated({
     fromWhere,
     params,

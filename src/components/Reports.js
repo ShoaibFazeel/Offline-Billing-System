@@ -7,6 +7,17 @@ import SearchBar from "./SearchBar"
 import configService from "../services/ConfigService"
 
 function Reports() {
+  const getDefaultDateFilter = () => {
+    const today = new Date()
+    const from = new Date(today)
+    from.setMonth(today.getMonth() - 3)
+
+    return {
+      from: from.toISOString().split("T")[0],
+      to: today.toISOString().split("T")[0],
+    }
+  }
+
   const [bills, setBills] = useState([])
   const [clients, setClients] = useState([])
   const [products, setProducts] = useState([])
@@ -18,7 +29,7 @@ function Reports() {
   const [fieldOfficerFilter, setFieldOfficerFilter] = useState("")
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
   const [addresses, setAddresses] = useState([])
-  const [dateFilter, setDateFilter] = useState({ from: "", to: "" })
+  const [dateFilter, setDateFilter] = useState(getDefaultDateFilter)
   const [groupBy, setGroupBy] = useState("address") // 'address', 'client', 'date'
   const [error, setError] = useState(null)
   const [searchTerm, setSearchTerm] = useState("")
@@ -30,6 +41,57 @@ function Reports() {
     fetchData()
   }, [])
 
+  const fetchBillsData = async (currentDateFilter = dateFilter) => {
+    const activeDateFilter = {
+      from: currentDateFilter?.from || getDefaultDateFilter().from,
+      to: currentDateFilter?.to || getDefaultDateFilter().to,
+    }
+
+    try {
+      if (window.api) {
+        const billsData = await window.api.getBills({
+          fromDate: activeDateFilter.from,
+          toDate: activeDateFilter.to,
+        })
+        setBills(Array.isArray(billsData) ? billsData : billsData?.data || [])
+      } else {
+        setBills([
+          {
+            _id: "bill1",
+            billNumber: "B001",
+            billDate: new Date().toISOString(),
+            clientId: "client1",
+            clientName: "ABC Corporation",
+            totalAmount: 5000,
+            items: [],
+          },
+          {
+            _id: "bill2",
+            billNumber: "B002",
+            billDate: new Date().toISOString(),
+            clientId: "client2",
+            clientName: "XYZ Ltd",
+            totalAmount: 7500,
+            items: [],
+          },
+          {
+            _id: "bill3",
+            billNumber: "B003",
+            billDate: new Date().toISOString(),
+            clientId: "client1",
+            clientName: "ABC Corporation",
+            totalAmount: 3200,
+            items: [],
+          },
+        ])
+      }
+    } catch (error) {
+      console.error("Error fetching bills:", error)
+      setError("Failed to load report data. Please try again later.")
+      toast.error("Failed to load report data")
+    }
+  }
+
   const fetchData = async () => {
     setLoading(true)
     setError(null)
@@ -39,7 +101,10 @@ function Reports() {
 
       if (window.api) {
         ;[billsData, clientsData, productsData, fieldOfficersData, salesmenData] = await Promise.all([
-          window.api.getBills(),
+          window.api.getBills({
+            fromDate: dateFilter.from || getDefaultDateFilter().from,
+            toDate: dateFilter.to || getDefaultDateFilter().to,
+          }),
           window.api.getClients(),
           window.api.getProducts(),
           window.api.getFieldOfficers(),
@@ -92,7 +157,7 @@ function Reports() {
         salesmenData = []
       }
 
-      setBills(billsData)
+      setBills(Array.isArray(billsData) ? billsData : billsData?.data || [])
       setClients(clientsData)
       setFieldOfficers(fieldOfficersData)
       setSalesmen(salesmenData)
@@ -123,9 +188,11 @@ function Reports() {
     }
   }
 
-  const handleDateFilterChange = (e) => {
+  const handleDateFilterChange = async (e) => {
     const { name, value } = e.target
-    setDateFilter({ ...dateFilter, [name]: value })
+    const nextDateFilter = { ...dateFilter, [name]: value }
+    setDateFilter(nextDateFilter)
+    await fetchBillsData(nextDateFilter)
   }
 
   const handleSearch = (term) => {
@@ -141,14 +208,16 @@ function Reports() {
     setSelectedProduct(product.productName)
   }
 
-  const handleResetFilters = () => {
+  const handleResetFilters = async () => {
     setAddressFilter("")
     setSalesmanFilter("")
     setFieldOfficerFilter("")
-    setDateFilter({ from: "", to: "" })
+    const defaultDateFilter = getDefaultDateFilter()
+    setDateFilter(defaultDateFilter)
     setSearchTerm("")
     setSelectedProduct("")
     setSelectedProductObj(null)
+    await fetchBillsData(defaultDateFilter)
   }
 
   // Clear selectedProductObj when search term is cleared

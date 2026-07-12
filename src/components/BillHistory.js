@@ -1,28 +1,36 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Link } from "react-router-dom"
 import toast from "react-hot-toast"
 import configService from "../services/ConfigService"
+import { useLazyData } from "../hooks/useLazyData"
+import dataService from "../services/DataService"
 
 function BillHistory() {
-  const [bills, setBills] = useState([])
+  const {
+    data: bills,
+    loading: billsLoading,
+    search: searchBills,
+    refresh: refreshBills,
+    loadMore,
+    hasMore,
+    total,
+  } = useLazyData("bills", "", 50)
+
   const [searchTerm, setSearchTerm] = useState("")
   const [dateFilter, setDateFilter] = useState({ from: "", to: "" })
+  const searchInputRef = useRef(null)
 
   useEffect(() => {
-    fetchBills()
-  }, [])
+    searchBills(searchTerm)
+  }, [searchTerm, searchBills])
 
-  const fetchBills = async () => {
-    try {
-      const data = await window.api.getBills()
-      setBills(data)
-    } catch (error) {
-      console.error("Error fetching bills:", error)
-      toast.error("Failed to load bills")
+  useEffect(() => {
+    if (searchInputRef.current) {
+      searchInputRef.current.focus()
     }
-  }
+  }, [])
 
   const handleSearch = (e) => {
     setSearchTerm(e.target.value)
@@ -30,7 +38,7 @@ function BillHistory() {
 
   const handleDateFilterChange = (e) => {
     const { name, value } = e.target
-    setDateFilter({ ...dateFilter, [name]: value })
+    setDateFilter((prev) => ({ ...prev, [name]: value }))
   }
 
   const handleDeleteBill = async (billId) => {
@@ -41,7 +49,8 @@ function BillHistory() {
     try {
       await window.api.deleteBill(billId)
       toast.success("Bill deleted successfully")
-      fetchBills() // Refresh the bills list
+      dataService.invalidateCacheOnModification("bills")
+      refreshBills()
     } catch (error) {
       console.error("Error deleting bill:", error)
       toast.error("Failed to delete bill")
@@ -49,12 +58,12 @@ function BillHistory() {
   }
 
   const filteredBills = bills.filter((bill) => {
-    // Filter by search term (client name or bill ID)
+    const clientName = bill.clientName || ""
+    const billId = bill.billId ? String(bill.billId) : bill._id || ""
     const matchesSearch =
-      bill.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (bill.billId ? String(bill.billId).includes(searchTerm) : bill._id.toLowerCase().includes(searchTerm.toLowerCase()))
+      clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      billId.toLowerCase().includes(searchTerm.toLowerCase())
 
-    // Filter by date range
     const billDateStr = bill.billDate ? new Date(bill.billDate).toISOString().split("T")[0] : ""
     let matchesDateRange = true
     if (dateFilter.from) {
@@ -68,18 +77,21 @@ function BillHistory() {
   })
 
   const calculateGrandTotal = () => {
-    return filteredBills.reduce((total, bill) => total + bill.totalAmount, 0)
+    return filteredBills.reduce((total, bill) => total + Number(bill.totalAmount || 0), 0)
   }
 
   return (
     <div>
-      <h1 className="text-3xl font-bold mb-6">Bill History</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Bill History: ({bills.length} of {total})</h1>
+      </div>
 
       <div className="bg-white rounded-lg shadow p-6 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="col-span-1">
             <label className="block text-gray-700 text-sm font-bold mb-2">Search</label>
             <input
+              ref={searchInputRef}
               type="text"
               placeholder="Search by party name or invoice no..."
               className="w-full p-2 border border-gray-300 rounded-md"
@@ -111,6 +123,13 @@ function BillHistory() {
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
+        {billsLoading && bills.length === 0 && (
+          <div className="p-8 text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <p className="mt-2 text-gray-600">Loading bills...</p>
+          </div>
+        )}
+
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -144,7 +163,7 @@ function BillHistory() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {configService.formatDate(bill.billDate)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">PKR {bill.totalAmount.toFixed(2)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">PKR {Number(bill.totalAmount || 0).toFixed(2)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
                       <Link
@@ -168,7 +187,7 @@ function BillHistory() {
               ))
             ) : (
               <tr>
-                <td colSpan="5" className="px-6 py-4 text-center text-sm text-gray-500">
+                <td colSpan="6" className="px-6 py-4 text-center text-sm text-gray-500">
                   {searchTerm || dateFilter.from || dateFilter.to
                     ? "No bills found matching your search criteria."
                     : "No bills available."}
@@ -183,6 +202,18 @@ function BillHistory() {
           </div>
         )}
       </div>
+
+      {hasMore && (
+        <div className="mt-4 text-center">
+          <button
+            onClick={loadMore}
+            disabled={billsLoading}
+            className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-md"
+          >
+            {billsLoading ? "Loading..." : "Load More Bills"}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
