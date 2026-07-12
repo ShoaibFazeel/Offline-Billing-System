@@ -25,12 +25,12 @@ jobs:
       - name: Build React bundle
         run: npm run build-react
 
-      - name: Build Windows installer
-        run: npm run build:win-installer
+      - name: Build Windows x64 installer
+        run: npm run build:win64
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Publish release
-        run: npx electron-builder --win --publish always
+        run: npx electron-builder --win --x64 --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
