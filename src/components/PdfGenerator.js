@@ -97,7 +97,7 @@ class PdfGenerator {
 
         const colY = y - 2
         // Right Aligned Numeric Columns
-        this._drawRightAlignedText(page, String(item.quantity), col[3] - 7, colY, 10, italic, this.colors.black)
+        this._drawRightAlignedText(page, item.isBonus ? "-" : String(item.quantity), col[3] - 7, colY, 10, italic, this.colors.black)
         this._drawRightAlignedText(page, item.isBonus ? String(item.quantity) : "-", (item.isBonus ? col[4] - 8 : col[4] - 12), colY, 10, italic, this.colors.black)
         this._drawRightAlignedText(page, `${Math.round(item.rate)}.00`, col[5] - 5, colY, 10, italic, this.colors.black)
 
@@ -108,7 +108,7 @@ class PdfGenerator {
           this._drawRightAlignedText(page, `${item.discount || "-"}${item.discount ? "%" : ""}`, (item.discount ? col[6] - 12 : col[6] - 22), colY, 10, italic, this.colors.black)
         }
 
-        this._drawRightAlignedText(page, `${Math.round(item.total)}.00`, right - 2, colY, 10, italic, this.colors.black)
+        this._drawRightAlignedText(page, item.isBonus ? "Free" : `${Math.round(item.total)}.00`, right - 2, colY, 10, italic, this.colors.black)
 
         y -= Math.ceil(y - y2) + 1
       }

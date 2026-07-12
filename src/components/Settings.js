@@ -22,7 +22,7 @@ function Settings() {
   })
   const [appConfig, setAppConfig] = useState({
     locale: "en-GB",
-    timezone: "UTC",
+    timezone: typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" : "UTC",
   })
   const [isLoading, setIsLoading] = useState(true)
 
@@ -781,11 +781,30 @@ function Settings() {
                     onChange={handleAppConfigChange}
                     className="w-full p-2 border border-gray-300 rounded-md"
                   >
-                    <option value="UTC">UTC (Universal Coordinated Time)</option>
-                    <option value="Asia/Karachi">Asia/Karachi (Pakistan Standard Time)</option>
-                    <option value="Asia/Dubai">Asia/Dubai (UAE)</option>
-                    <option value="Europe/London">Europe/London (GMT/BST)</option>
-                    <option value="America/New_York">America/New_York (EST/EDT)</option>
+                    {(() => {
+                      const localTz = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
+                      const defaults = [
+                        { value: "UTC", label: "UTC (Universal Coordinated Time)" },
+                        { value: "Asia/Karachi", label: "Asia/Karachi (Pakistan Standard Time)" },
+                        { value: "Asia/Dubai", label: "Asia/Dubai (UAE)" },
+                        { value: "Europe/London", label: "Europe/London (GMT/BST)" },
+                        { value: "America/New_York", label: "America/New_York (EST/EDT)" },
+                      ];
+                      const options = [];
+                      if (localTz) {
+                        options.push({ value: localTz, label: `Local (${localTz})` });
+                      }
+                      defaults.forEach(opt => {
+                        if (opt.value !== localTz) {
+                          options.push(opt);
+                        }
+                      });
+                      return options.map(opt => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ));
+                    })()}
                   </select>
                   <p className="mt-1 text-xs text-gray-500">
                     Fixes the application time regardless of your computer's local settings.

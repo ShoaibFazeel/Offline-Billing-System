@@ -1,9 +1,10 @@
 // Config Service to manage application-wide settings
 class ConfigService {
     constructor() {
+        const localTz = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
         this.config = {
             locale: "en-GB",
-            timezone: "UTC",
+            timezone: localTz || "UTC",
         }
         this.initialized = false
         this.initializationPromise = null
@@ -18,10 +19,11 @@ class ConfigService {
                 if (window.api && window.api.getAppConfig) {
                     const config = await window.api.getAppConfig()
                     if (config) {
+                        const localTz = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
                         this.config = {
                             ...this.config,
                             locale: config.locale || "en-GB",
-                            timezone: config.timezone || "UTC",
+                            timezone: config.timezone || localTz || "UTC",
                         }
                     }
                 }
@@ -86,7 +88,18 @@ class ConfigService {
     formatTime(date, extraOptions = {}) {
         try {
             const d = date instanceof Date ? date : new Date(date)
-            return d.toLocaleTimeString(this.config.locale, this.getDateOptions(extraOptions))
+            const options = this.getDateOptions(extraOptions)
+            let timeStr = d.toLocaleTimeString(this.config.locale, options)
+
+            // If this is a 12-hour clock (either explicitly requested or resolved by default)
+            const is12Hour = options.hour12 === true ||
+                             (new Intl.DateTimeFormat(this.config.locale, { hour: 'numeric', ...options }).resolvedOptions().hour12 === true);
+
+            if (is12Hour) {
+                // Replace leading 0: or 00: (or preceded by space) with 12:
+                timeStr = timeStr.replace(/(^|[\s])00?(:)/g, (match, p1, p2) => p1 + "12" + p2)
+            }
+            return timeStr
         } catch (error) {
             console.error("Error formatting time:", error)
             return "Invalid Time"

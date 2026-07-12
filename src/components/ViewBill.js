@@ -29,7 +29,7 @@ function ViewBill() {
   const [salesmanSearchTerm, setSalesmanSearchTerm] = useState("")
   const [productSearchTerms, setProductSearchTerms] = useState({})
   const [originalItems, setOriginalItems] = useState([])
-  const [showDiscountAsAmount, setShowDiscountAsAmount] = useState(false)
+  const [showDiscountAsAmount, setShowDiscountAsAmount] = useState(true)
 
   // Add refs for search inputs
   const clientSearchRef = useRef(null)

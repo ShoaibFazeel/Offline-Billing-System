@@ -780,9 +780,10 @@ ipcMain.handle("get-app-config", async () => {
       else {
         // Return default values if no config exists
         if (!appConfig) {
+          const localTz = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
           resolve({
             locale: "en-GB",
-            timezone: "UTC",
+            timezone: localTz || "UTC",
           })
         } else {
           resolve(appConfig)
