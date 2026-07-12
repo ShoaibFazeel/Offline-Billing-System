@@ -1,6 +1,6 @@
 {
   "name": "offline-billing-system",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Offline Billing and Inventory Management Application",
   "main": "main.js",
   "scripts": {
