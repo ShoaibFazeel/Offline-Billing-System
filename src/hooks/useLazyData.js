@@ -87,17 +87,32 @@ export const useLazyData = (dataType, initialSearchTerm = '', initialLimit = 50,
     const newOffset = (page - 1) * limit
     setCurrentPage(page)
     if (fetchDataRef.current) {
-      // We use a modified version of fetchData logic here to replace data
       if (abortControllerRef.current) abortControllerRef.current.abort()
       abortControllerRef.current = new AbortController()
       setLoading(true)
       try {
         let result
-        if (dataType === 'lowStockProducts') {
-          result = await dataService.getLowStockProducts(params.threshold || 50, limit, newOffset)
-        } else {
-          // Fallback for other types if needed
-          result = await dataService.getProducts(searchTerm, limit, newOffset)
+        switch (dataType) {
+          case 'products':
+            result = await dataService.getProducts(searchTerm, limit, newOffset)
+            break
+          case 'clients':
+            result = await dataService.getClients(searchTerm, limit, newOffset)
+            break
+          case 'bills':
+            result = await dataService.getBills(searchTerm, limit, newOffset)
+            break
+          case 'fieldOfficers':
+            result = await dataService.getFieldOfficers(searchTerm, limit, newOffset)
+            break
+          case 'salesmen':
+            result = await dataService.getSalesmen(searchTerm, limit, newOffset)
+            break
+          case 'lowStockProducts':
+            result = await dataService.getLowStockProducts(params.threshold || 50, limit, newOffset)
+            break
+          default:
+            throw new Error(`Unknown data type: ${dataType}`)
         }
 
         if (!abortControllerRef.current.signal.aborted) {

@@ -92,6 +92,13 @@ function createSchema() {
   `)
 }
 
+function toIsoDate(value) {
+  if (!value) return ""
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ""
+  return date.toISOString()
+}
+
 /** Read lines from a NeDB flat file and return parsed objects */
 function readNedbFile(filePath) {
   if (!fs.existsSync(filePath)) return []
@@ -151,7 +158,7 @@ function migrateFromNedb() {
       clientAddress: b.clientAddress || "",
       fieldOfficerId: b.fieldOfficerId || "",
       salesmanId: b.salesmanId || "",
-      billDate: b.billDate ? new Date(b.billDate).toISOString() : "",
+      billDate: toIsoDate(b.billDate),
       totalAmount: b.totalAmount || 0,
       items: JSON.stringify(b.items || []),
     })},
@@ -162,7 +169,7 @@ function migrateFromNedb() {
       rate: cp.rate || 0,
       discount: cp.discount || 0,
       extraDiscount: cp.extraDiscount || 0,
-      lastUsed: cp.lastUsed ? new Date(cp.lastUsed).toISOString() : "",
+      lastUsed: toIsoDate(cp.lastUsed),
     })},
   ]
 
@@ -252,6 +259,27 @@ function queryOne(sql, params = []) {
   return rows.length > 0 ? rows[0] : null
 }
 
+/** Run a paginated SELECT; returns array when limit=0, else { data, total, hasMore, offset, limit } */
+function queryPaginated({ fromWhere, params = [], orderBy = "", limit = 0, offset = 0, parseRow }) {
+  const mapRow = parseRow || (row => row)
+  const countRow = queryOne(`SELECT COUNT(*) as cnt ${fromWhere}`, params)
+  const total = Number(countRow?.cnt || 0)
+
+  let sql = `SELECT * ${fromWhere}`
+  if (orderBy) sql += ` ORDER BY ${orderBy}`
+  const dataParams = [...params]
+  if (limit > 0) {
+    sql += " LIMIT ? OFFSET ?"
+    dataParams.push(limit, offset)
+  }
+
+  const data = queryAll(sql, dataParams).map(mapRow)
+  if (limit > 0) {
+    return { data, total, hasMore: offset + limit < total, offset, limit }
+  }
+  return data
+}
+
 /** Parse a bill row: inflate items JSON and fix boolean/number fields */
 function parseBill(row) {
   if (!row) return null
@@ -334,18 +362,13 @@ app.on("window-all-closed", () => {
 // ─────────────────────────────────────────────────────────────────
 ipcMain.handle("get-products", async (event, opts = {}) => {
   const { search = "", limit = 0, offset = 0 } = opts || {}
-  let sql = "SELECT * FROM products"
+  let fromWhere = "FROM products"
   const params = []
   if (search) {
-    sql += " WHERE productName LIKE ? OR companyName LIKE ?"
+    fromWhere += " WHERE productName LIKE ? OR companyName LIKE ?"
     params.push(`%${search}%`, `%${search}%`)
   }
-  sql += " ORDER BY productName ASC"
-  if (limit > 0) {
-    sql += " LIMIT ? OFFSET ?"
-    params.push(limit, offset)
-  }
-  return queryAll(sql, params).map(parseProduct)
+  return queryPaginated({ fromWhere, params, orderBy: "productName ASC", limit, offset, parseRow: parseProduct })
 })
 
 ipcMain.handle("add-product", async (event, product) => {
@@ -430,18 +453,13 @@ ipcMain.handle("update-existing-products-purchase-price", async () => {
 // ─────────────────────────────────────────────────────────────────
 ipcMain.handle("get-clients", async (event, opts = {}) => {
   const { search = "", limit = 0, offset = 0 } = opts || {}
-  let sql = "SELECT * FROM clients"
+  let fromWhere = "FROM clients"
   const params = []
   if (search) {
-    sql += " WHERE clientName LIKE ? OR clientNumber LIKE ? OR clientAddress LIKE ?"
+    fromWhere += " WHERE clientName LIKE ? OR clientNumber LIKE ? OR clientAddress LIKE ?"
     params.push(`%${search}%`, `%${search}%`, `%${search}%`)
   }
-  sql += " ORDER BY clientName ASC"
-  if (limit > 0) {
-    sql += " LIMIT ? OFFSET ?"
-    params.push(limit, offset)
-  }
-  return queryAll(sql, params).map(parseClient)
+  return queryPaginated({ fromWhere, params, orderBy: "clientName ASC", limit, offset, parseRow: parseClient })
 })
 
 ipcMain.handle("get-client", async (event, clientId) => {
@@ -511,15 +529,13 @@ ipcMain.handle("import-clients", async (event, clients) => {
 // ─────────────────────────────────────────────────────────────────
 ipcMain.handle("get-field-officers", async (event, opts = {}) => {
   const { search = "", limit = 0, offset = 0 } = opts || {}
-  let sql = "SELECT * FROM field_officers"
+  let fromWhere = "FROM field_officers"
   const params = []
   if (search) {
-    sql += " WHERE name LIKE ? OR phoneNumber LIKE ?"
+    fromWhere += " WHERE name LIKE ? OR phoneNumber LIKE ?"
     params.push(`%${search}%`, `%${search}%`)
   }
-  sql += " ORDER BY name ASC"
-  if (limit > 0) { sql += " LIMIT ? OFFSET ?"; params.push(limit, offset) }
-  return queryAll(sql, params)
+  return queryPaginated({ fromWhere, params, orderBy: "name ASC", limit, offset })
 })
 
 ipcMain.handle("get-field-officer", async (event, id) => {
@@ -566,15 +582,13 @@ ipcMain.handle("import-field-officers", async (event, fieldOfficers) => {
 // ─────────────────────────────────────────────────────────────────
 ipcMain.handle("get-salesmen", async (event, opts = {}) => {
   const { search = "", limit = 0, offset = 0 } = opts || {}
-  let sql = "SELECT * FROM salesmen"
+  let fromWhere = "FROM salesmen"
   const params = []
   if (search) {
-    sql += " WHERE name LIKE ? OR phoneNumber LIKE ?"
+    fromWhere += " WHERE name LIKE ? OR phoneNumber LIKE ?"
     params.push(`%${search}%`, `%${search}%`)
   }
-  sql += " ORDER BY name ASC"
-  if (limit > 0) { sql += " LIMIT ? OFFSET ?"; params.push(limit, offset) }
-  return queryAll(sql, params)
+  return queryPaginated({ fromWhere, params, orderBy: "name ASC", limit, offset })
 })
 
 ipcMain.handle("get-salesman", async (event, id) => {
@@ -621,15 +635,44 @@ ipcMain.handle("import-salesmen", async (event, salesmen) => {
 // ─────────────────────────────────────────────────────────────────
 ipcMain.handle("get-bills", async (event, opts = {}) => {
   const { search = "", limit = 0, offset = 0 } = opts || {}
-  let sql = "SELECT * FROM bills"
+  let fromWhere = "FROM bills"
   const params = []
   if (search) {
-    sql += " WHERE clientName LIKE ? OR CAST(billId AS TEXT) LIKE ?"
+    fromWhere += " WHERE clientName LIKE ? OR CAST(billId AS TEXT) LIKE ?"
     params.push(`%${search}%`, `%${search}%`)
   }
-  sql += " ORDER BY billDate DESC, CAST(billId AS INTEGER) DESC"
-  if (limit > 0) { sql += " LIMIT ? OFFSET ?"; params.push(limit, offset) }
-  return queryAll(sql, params).map(parseBill)
+  return queryPaginated({
+    fromWhere,
+    params,
+    orderBy: "billDate DESC, CAST(billId AS INTEGER) DESC",
+    limit,
+    offset,
+    parseRow: parseBill,
+  })
+})
+
+ipcMain.handle("get-low-stock-products", async (event, opts = {}) => {
+  const { threshold = 50, limit = 0, offset = 0 } = opts || {}
+  const fromWhere = "FROM products WHERE hasInfiniteQuantity = 0 AND quantity <= ?"
+  const params = [threshold]
+  return queryPaginated({
+    fromWhere,
+    params,
+    orderBy: "quantity ASC, productName ASC",
+    limit,
+    offset,
+    parseRow: parseProduct,
+  })
+})
+
+ipcMain.handle("get-dashboard-stats", async () => {
+  const products = Number(queryOne("SELECT COUNT(*) as cnt FROM products")?.cnt || 0)
+  const clients = Number(queryOne("SELECT COUNT(*) as cnt FROM clients")?.cnt || 0)
+  const bills = Number(queryOne("SELECT COUNT(*) as cnt FROM bills")?.cnt || 0)
+  const recentBills = queryAll(
+    "SELECT * FROM bills ORDER BY billDate DESC, CAST(billId AS INTEGER) DESC LIMIT 5"
+  ).map(parseBill)
+  return { products, clients, bills, recentBills }
 })
 
 ipcMain.handle("get-bill", async (event, billId) => {
@@ -656,7 +699,7 @@ ipcMain.handle("add-bill", async (event, bill) => {
       billToSave.clientAddress || "",
       billToSave.fieldOfficerId || "",
       billToSave.salesmanId || "",
-      billToSave.billDate ? new Date(billToSave.billDate).toISOString() : "",
+      billToSave.billDate ? toIsoDate(billToSave.billDate) : "",
       Number(billToSave.totalAmount) || 0,
       JSON.stringify(billToSave.items),
     ]
@@ -669,7 +712,7 @@ ipcMain.handle("add-bill", async (event, bill) => {
       const cpId = queryOne("SELECT _id FROM client_products WHERE clientId=? AND productId=?", [billToSave.clientId, item.productId])
       db.run(
         "INSERT OR REPLACE INTO client_products(_id,clientId,productId,rate,discount,extraDiscount,lastUsed) VALUES(?,?,?,?,?,?,?)",
-        [cpId ? cpId._id : generateId(), billToSave.clientId, item.productId, item.rate || 0, item.discount || 0, item.extraDiscount || 0, new Date().toISOString()]
+        [cpId ? cpId._id : generateId(), billToSave.clientId, item.productId, item.rate || 0, item.discount || 0, item.extraDiscount || 0, toIsoDate(new Date())]
       )
     }
   }
@@ -695,7 +738,7 @@ ipcMain.handle("update-bill", async (event, bill) => {
       billToSave.clientAddress || "",
       billToSave.fieldOfficerId || "",
       billToSave.salesmanId || "",
-      billToSave.billDate ? new Date(billToSave.billDate).toISOString() : "",
+      billToSave.billDate ? toIsoDate(billToSave.billDate) : "",
       Number(billToSave.totalAmount) || 0,
       JSON.stringify(billToSave.items),
       billToSave._id,
@@ -707,7 +750,7 @@ ipcMain.handle("update-bill", async (event, bill) => {
       const cpId = queryOne("SELECT _id FROM client_products WHERE clientId=? AND productId=?", [billToSave.clientId, item.productId])
       db.run(
         "INSERT OR REPLACE INTO client_products(_id,clientId,productId,rate,discount,extraDiscount,lastUsed) VALUES(?,?,?,?,?,?,?)",
-        [cpId ? cpId._id : generateId(), billToSave.clientId, item.productId, item.rate || 0, item.discount || 0, item.extraDiscount || 0, new Date().toISOString()]
+        [cpId ? cpId._id : generateId(), billToSave.clientId, item.productId, item.rate || 0, item.discount || 0, item.extraDiscount || 0, toIsoDate(new Date())]
       )
     }
   }
@@ -743,7 +786,7 @@ ipcMain.handle("import-bills", async (event, bills) => {
       clientAddress: bill.clientAddress || "",
       fieldOfficerId: bill.fieldOfficerId || "",
       salesmanId: bill.salesmanId || "",
-      billDate: bill.billDate ? new Date(bill.billDate).toISOString() : "",
+      billDate: toIsoDate(bill.billDate),
       totalAmount: Number(bill.totalAmount) || 0,
       items: JSON.stringify(ensureItemsHaveIds(bill.items || [])),
     }

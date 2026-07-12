@@ -4,7 +4,8 @@ const { contextBridge, ipcRenderer } = require("electron")
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld("api", {
   // Products
-  getProducts: () => ipcRenderer.invoke("get-products"),
+  getProducts: (opts) => ipcRenderer.invoke("get-products", opts),
+  getLowStockProducts: (opts) => ipcRenderer.invoke("get-low-stock-products", opts),
   deleteProduct: (id) => ipcRenderer.invoke("delete-product", id),
   addProduct: (product) => ipcRenderer.invoke("add-product", product),
   updateProduct: (product) => ipcRenderer.invoke("update-product", product),
@@ -12,7 +13,7 @@ contextBridge.exposeInMainWorld("api", {
   updateExistingProductsPurchasePrice: () => ipcRenderer.invoke("update-existing-products-purchase-price"),
 
   // Clients
-  getClients: () => ipcRenderer.invoke("get-clients"),
+  getClients: (opts) => ipcRenderer.invoke("get-clients", opts),
   deleteClient: (id) => ipcRenderer.invoke("delete-client", id),
   addClient: (client) => ipcRenderer.invoke("add-client", client),
   updateClient: (client) => ipcRenderer.invoke("update-client", client),
@@ -20,7 +21,7 @@ contextBridge.exposeInMainWorld("api", {
   getClient: (clientId) => ipcRenderer.invoke("get-client", clientId),
 
   // Field Officers
-  getFieldOfficers: () => ipcRenderer.invoke("get-field-officers"),
+  getFieldOfficers: (opts) => ipcRenderer.invoke("get-field-officers", opts),
   addFieldOfficer: (fieldOfficer) => ipcRenderer.invoke("add-field-officer", fieldOfficer),
   updateFieldOfficer: (fieldOfficer) => ipcRenderer.invoke("update-field-officer", fieldOfficer),
   deleteFieldOfficer: (id) => ipcRenderer.invoke("delete-field-officer", id),
@@ -29,7 +30,7 @@ contextBridge.exposeInMainWorld("api", {
   getFieldOfficer: (fieldOfficerId) => ipcRenderer.invoke("get-field-officer", fieldOfficerId),
 
   // Salesmen
-  getSalesmen: () => ipcRenderer.invoke("get-salesmen"),
+  getSalesmen: (opts) => ipcRenderer.invoke("get-salesmen", opts),
   addSalesman: (salesman) => ipcRenderer.invoke("add-salesman", salesman),
   updateSalesman: (salesman) => ipcRenderer.invoke("update-salesman", salesman),
   deleteSalesman: (id) => ipcRenderer.invoke("delete-salesman", id),
@@ -38,12 +39,15 @@ contextBridge.exposeInMainWorld("api", {
   getSalesman: (salesmanId) => ipcRenderer.invoke("get-salesman", salesmanId),
 
   // Bills
-  getBills: () => ipcRenderer.invoke("get-bills"),
+  getBills: (opts) => ipcRenderer.invoke("get-bills", opts),
   getBill: (billId) => ipcRenderer.invoke("get-bill", billId),
   addBill: (bill) => ipcRenderer.invoke("add-bill", bill),
   updateBill: (bill) => ipcRenderer.invoke("update-bill", bill),
   deleteBill: (billId) => ipcRenderer.invoke("delete-bill", billId),
   importBills: (bills) => ipcRenderer.invoke("import-bills", bills),
+
+  // Dashboard
+  getDashboardStats: () => ipcRenderer.invoke("get-dashboard-stats"),
 
   // Client-Product history
   getClientProduct: (clientId, productId) => ipcRenderer.invoke("get-client-product", { clientId, productId }),
