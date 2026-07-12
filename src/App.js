@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { HashRouter as Router, Routes, Route, Link } from "react-router-dom"
 import Dashboard from "./components/Dashboard"
 import InventoryManagement from "./components/InventoryManagement"
@@ -12,11 +12,45 @@ import Settings from "./components/Settings"
 import FieldOfficerManagement from "./components/FieldOfficerManagement"
 import SalesmanManagement from "./components/SalesmanManagement"
 import Reports from "./components/Reports"
-import { Toaster } from "react-hot-toast"
+import { Toaster, toast } from "react-hot-toast"
 import "./index.css"
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [pendingUpdate, setPendingUpdate] = useState(null)
+
+  useEffect(() => {
+    const removeListener = window.api?.onUpdateStatus?.((payload) => {
+      if (!payload) return
+
+      if (payload.type === "update-available" && payload.payload?.version) {
+        setPendingUpdate({ version: payload.payload.version })
+        toast.success(`Update ${payload.payload.version} is available`)
+      } else if (payload.type === "update-downloaded" && payload.payload?.version) {
+        setPendingUpdate({ version: payload.payload.version })
+        toast.success("Update downloaded and ready to install")
+      } else if (payload.type === "error") {
+        toast.error(payload.payload?.message || "Update check failed")
+      }
+    })
+
+    return () => removeListener?.()
+  }, [])
+
+  const handleInstallPendingUpdate = async () => {
+    if (!pendingUpdate) {
+      toast.error("No update is ready to install")
+      return
+    }
+
+    try {
+      await window.api.installUpdate()
+      setPendingUpdate(null)
+    } catch (error) {
+      console.error("Error installing pending update:", error)
+      toast.error("Failed to start the update installation")
+    }
+  }
 
   return (
     <Router>
@@ -69,6 +103,16 @@ function App() {
         {/* Main Content */}
         <div className="flex-1 overflow-auto">
           <div className="p-6">
+            {pendingUpdate && (
+              <div className="flex justify-end mb-4">
+                <button
+                  onClick={handleInstallPendingUpdate}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md shadow-sm"
+                >
+                  Update Available: v{pendingUpdate.version}
+                </button>
+              </div>
+            )}
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/inventory" element={<InventoryManagement />} />

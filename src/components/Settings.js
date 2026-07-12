@@ -25,6 +25,8 @@ function Settings() {
     timezone: typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" : "UTC",
   })
   const [isLoading, setIsLoading] = useState(true)
+  const [updateStatus, setUpdateStatus] = useState("Ready to check for updates")
+  const [isCheckingUpdates, setIsCheckingUpdates] = useState(false)
 
   useEffect(() => {
     // Check if user is already authenticated in this session
@@ -147,7 +149,9 @@ function Settings() {
   }
 
   const saveAppConfig = async (e) => {
-    e.preventDefault()
+    if (e?.preventDefault) {
+      e.preventDefault()
+    }
     try {
       const success = await configService.updateConfig(appConfig)
       if (success) {
@@ -159,6 +163,38 @@ function Settings() {
     } catch (error) {
       console.error("Error saving app config:", error)
       toast.error("Failed to save application configuration")
+    }
+  }
+
+  const handleCheckForUpdates = async () => {
+    setIsCheckingUpdates(true)
+    setUpdateStatus("Checking for updates...")
+
+    try {
+      const result = await window.api.checkForUpdates()
+      setUpdateStatus(result?.message || "No update information returned.")
+      if (result?.message?.includes("background")) {
+        toast.success("Update check started")
+      } else {
+        toast.success(result?.message || "Update check completed")
+      }
+    } catch (error) {
+      console.error("Error checking updates:", error)
+      setUpdateStatus("Unable to check for updates right now.")
+      toast.error("Failed to check for updates")
+    } finally {
+      setIsCheckingUpdates(false)
+    }
+  }
+
+  const handleInstallPendingUpdate = async () => {
+    try {
+      await window.api.installUpdate()
+      setUpdateStatus("Installing update...")
+    } catch (error) {
+      console.error("Error installing update:", error)
+      setUpdateStatus("Failed to start the update installation")
+      toast.error("Failed to start the update installation")
     }
   }
 
@@ -441,6 +477,13 @@ function Settings() {
             onClick={() => setActiveTab("application")}
           >
             Application
+          </button>
+          <button
+            className={`px-4 py-3 font-medium ${activeTab === "updates" ? "bg-blue-50 text-blue-600 border-b-2 border-blue-600" : "text-gray-600"
+              }`}
+            onClick={() => setActiveTab("updates")}
+          >
+            Updates
           </button>
         </div>
 
@@ -825,6 +868,41 @@ function Settings() {
                   </p>
                 </div>
               </form>
+            </div>
+          )}
+
+          {activeTab === "updates" && (
+            <div>
+              <h2 className="text-xl font-semibold mb-4">Application Updates</h2>
+              <div className="space-y-4 max-w-2xl">
+                <div className="p-4 border border-gray-200 rounded-md bg-gray-50">
+                  <p className="text-sm text-gray-600">
+                    The app will check GitHub Releases automatically for newer versions and prompt you to install them.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={handleCheckForUpdates}
+                      disabled={isCheckingUpdates}
+                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white py-2 px-4 rounded-md"
+                    >
+                      {isCheckingUpdates ? "Checking..." : "Check for Updates"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleInstallPendingUpdate}
+                      className="bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-md"
+                    >
+                      Install Update
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-4 border border-gray-200 rounded-md">
+                  <h3 className="text-lg font-medium mb-2">Current Status</h3>
+                  <p className="text-sm text-gray-700">{updateStatus}</p>
+                </div>
+              </div>
             </div>
           )}
         </div>

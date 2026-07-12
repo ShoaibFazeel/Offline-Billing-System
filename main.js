@@ -1,10 +1,11 @@
-const { app, BrowserWindow, ipcMain } = require("electron")
+const { app, BrowserWindow, ipcMain, dialog } = require("electron")
 const path = require("path")
 const fs = require("fs")
 const { v4: uuidv4 } = require("uuid")
 const initSqlJs = require("sql.js")
 const { shell } = require("electron")
 const os = require("os")
+const { autoUpdater } = require("electron-updater")
 
 // ─────────────────────────────────────────────────────────────────
 // Database bootstrap
@@ -329,6 +330,33 @@ function updateProductQuantities(items, isRefund = false) {
 // ─────────────────────────────────────────────────────────────────
 let mainWindow
 
+function sendUpdateStatus(type, payload = {}) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("update-status", { type, payload })
+  }
+}
+
+function setupAutoUpdater() {
+  if (process.env.NODE_ENV === "development") return
+
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = false
+
+  autoUpdater.on("checking-for-update", () => sendUpdateStatus("checking-for-update"))
+  autoUpdater.on("update-available", (info) => sendUpdateStatus("update-available", info))
+  autoUpdater.on("update-not-available", (info) => sendUpdateStatus("update-not-available", info))
+  autoUpdater.on("download-progress", (progressObj) => sendUpdateStatus("download-progress", progressObj))
+  autoUpdater.on("update-downloaded", (info) => sendUpdateStatus("update-downloaded", info))
+  autoUpdater.on("error", (error) => sendUpdateStatus("error", { message: error?.message || String(error) }))
+
+  setTimeout(() => {
+    autoUpdater.checkForUpdatesAndNotify().catch((error) => {
+      console.error("Failed to check for updates:", error)
+      sendUpdateStatus("error", { message: error?.message || "Failed to check for updates." })
+    })
+  }, 10000)
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -348,6 +376,7 @@ function createWindow() {
 app.whenReady().then(async () => {
   await initDatabase()
   createWindow()
+  setupAutoUpdater()
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
@@ -855,13 +884,41 @@ ipcMain.handle("get-app-config", async () => {
     const localTz = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC"
     return { locale: "en-GB", timezone: localTz || "UTC" }
   }
-  try { return JSON.parse(row.data) } catch { return { locale: "en-GB", timezone: "UTC" } }
+  try {
+    return JSON.parse(row.data)
+  } catch {
+    return { locale: "en-GB", timezone: "UTC" }
+  }
 })
 
 ipcMain.handle("update-app-config", async (event, appConfig) => {
   db.run("INSERT OR REPLACE INTO settings(type,data) VALUES('app-config',?)", [JSON.stringify(appConfig)])
   persist()
   return 1
+})
+
+ipcMain.handle("check-for-updates", async () => {
+  try {
+    if (process.env.NODE_ENV === "development") {
+      return { hasUpdate: false, message: "Auto-updates are disabled in development mode." }
+    }
+
+    autoUpdater.checkForUpdatesAndNotify()
+    return { hasUpdate: false, message: "Checking for updates in the background..." }
+  } catch (error) {
+    console.error("Error checking for updates:", error)
+    return { hasUpdate: false, message: "Unable to check for updates right now." }
+  }
+})
+
+ipcMain.handle("install-update", async () => {
+  try {
+    autoUpdater.quitAndInstall(false, true)
+    return true
+  } catch (error) {
+    console.error("Error installing update:", error)
+    throw error
+  }
 })
 
 // ─────────────────────────────────────────────────────────────────

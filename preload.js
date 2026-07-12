@@ -68,4 +68,13 @@ contextBridge.exposeInMainWorld("api", {
   // Application Configuration
   getAppConfig: () => ipcRenderer.invoke("get-app-config"),
   updateAppConfig: (config) => ipcRenderer.invoke("update-app-config", config),
+
+  // Auto-updates
+  checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
+  installUpdate: () => ipcRenderer.invoke("install-update"),
+  onUpdateStatus: (callback) => {
+    const listener = (_event, payload) => callback(payload)
+    ipcRenderer.on("update-status", listener)
+    return () => ipcRenderer.removeListener("update-status", listener)
+  },
 })
