@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require("electron")
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require("electron")
 const path = require("path")
 const fs = require("fs")
 const { v4: uuidv4 } = require("uuid")
@@ -342,12 +342,37 @@ function setupAutoUpdater() {
   autoUpdater.autoDownload = true
   autoUpdater.autoInstallOnAppQuit = false
 
+  let updateCheckSettled = false
+
+  const settleNoUpdate = () => {
+    if (!updateCheckSettled) {
+      updateCheckSettled = true
+      sendUpdateStatus("update-not-available", { version: app.getVersion() })
+    }
+  }
+
   autoUpdater.on("checking-for-update", () => sendUpdateStatus("checking-for-update"))
-  autoUpdater.on("update-available", (info) => sendUpdateStatus("update-available", info))
-  autoUpdater.on("update-not-available", (info) => sendUpdateStatus("update-not-available", info))
+  autoUpdater.on("update-available", (info) => {
+    updateCheckSettled = true
+    sendUpdateStatus("update-available", info)
+  })
+  autoUpdater.on("update-not-available", (info) => {
+    updateCheckSettled = true
+    sendUpdateStatus("update-not-available", info)
+  })
   autoUpdater.on("download-progress", (progressObj) => sendUpdateStatus("download-progress", progressObj))
-  autoUpdater.on("update-downloaded", (info) => sendUpdateStatus("update-downloaded", info))
-  autoUpdater.on("error", (error) => sendUpdateStatus("error", { message: error?.message || String(error) }))
+  autoUpdater.on("update-downloaded", (info) => {
+    updateCheckSettled = true
+    sendUpdateStatus("update-downloaded", info)
+  })
+  autoUpdater.on("error", (error) => {
+    updateCheckSettled = true
+    sendUpdateStatus("error", { message: error?.message || String(error) })
+  })
+
+  setTimeout(() => {
+    settleNoUpdate()
+  }, 20000)
 
   setTimeout(() => {
     autoUpdater.checkForUpdatesAndNotify().catch((error) => {
@@ -368,6 +393,45 @@ function createWindow() {
     },
   })
   mainWindow.loadFile("index.html")
+
+  const template = [
+    {
+      label: "File",
+      submenu: [
+        {
+          label: "Refresh",
+          click: () => {
+            app.relaunch();
+          }
+        },
+        {
+          label: "Exit",
+          click: () => {
+            app.quit();
+          }
+        }
+      ],
+    },
+    {
+      label: "Help",
+      submenu: [
+        {
+          label: "About",
+          click: () => {
+            dialog.showMessageBox(mainWindow, {
+              title: "About Offline Billing System",
+              type: "info",
+              message: `Offline Billing System\nVersion ${app.getVersion()}`,
+              detail: "Desktop billing and inventory management application.",
+            })
+          },
+        },
+      ],
+    },
+  ]
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+
   if (process.env.NODE_ENV === "development") {
     mainWindow.webContents.openDevTools()
   }

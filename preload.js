@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require("electron")
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld("api", {
+  appVersion: process.env.npm_package_version || "1.0.0",
   // Products
   getProducts: (opts) => ipcRenderer.invoke("get-products", opts),
   getLowStockProducts: (opts) => ipcRenderer.invoke("get-low-stock-products", opts),

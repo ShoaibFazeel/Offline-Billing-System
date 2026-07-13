@@ -172,12 +172,9 @@ function Settings() {
 
     try {
       const result = await window.api.checkForUpdates()
-      setUpdateStatus(result?.message || "No update information returned.")
-      if (result?.message?.includes("background")) {
-        toast.success("Update check started")
-      } else {
-        toast.success(result?.message || "Update check completed")
-      }
+      const message = result?.message || "No update information returned."
+      setUpdateStatus(message)
+      toast.success(message)
     } catch (error) {
       console.error("Error checking updates:", error)
       setUpdateStatus("Unable to check for updates right now.")
