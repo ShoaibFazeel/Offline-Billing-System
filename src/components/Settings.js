@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import toast from "react-hot-toast"
 import configService from "../services/ConfigService"
+import storageService from "../services/StorageService"
 
 function Settings() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -30,7 +31,7 @@ function Settings() {
 
   useEffect(() => {
     // Check if user is already authenticated in this session
-    const sessionAuth = sessionStorage.getItem("isAuthenticated")
+    const sessionAuth = storageService.getSessionItem("isAuthenticated")
     if (sessionAuth === "true") {
       setIsAuthenticated(true)
     }
@@ -78,7 +79,7 @@ function Settings() {
 
       if (username === validUsername && password === validPassword) {
         setIsAuthenticated(true)
-        sessionStorage.setItem("isAuthenticated", "true")
+        storageService.setSessionItem("isAuthenticated", "true")
         toast.success("Login successful")
       } else {
         toast.error("Invalid username or password")
@@ -91,7 +92,7 @@ function Settings() {
 
   const handleLogout = () => {
     setIsAuthenticated(false)
-    sessionStorage.removeItem("isAuthenticated")
+    storageService.removeSessionItem("isAuthenticated")
     setUsername("")
     setPassword("")
   }

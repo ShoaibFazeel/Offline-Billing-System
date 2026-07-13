@@ -6,6 +6,7 @@ import toast from "react-hot-toast"
 import configService from "../services/ConfigService"
 import { useLazyData } from "../hooks/useLazyData"
 import dataService from "../services/DataService"
+import storageService from "../services/StorageService"
 
 function BillHistory() {
   const {
@@ -184,7 +185,7 @@ function BillHistory() {
                         to={`/bill/${bill._id}`}
                         className="text-blue-600 hover:text-blue-900"
                         onClick={() => {
-                          localStorage.setItem("billSourcePage", "bills")
+                          storageService.setLocalItem("billSourcePage", "bills")
                         }}
                       >
                         View

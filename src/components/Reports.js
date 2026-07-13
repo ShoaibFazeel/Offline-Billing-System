@@ -1198,7 +1198,7 @@ function Reports() {
                               href={`#/bill/${bill._id}`}
                               className="text-purple-600 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-md transition-colors"
                               onClick={() => {
-                                localStorage.setItem("billSourcePage", "reports")
+                                storageService.setLocalItem("billSourcePage", "reports")
                               }}
                             >
                               View
