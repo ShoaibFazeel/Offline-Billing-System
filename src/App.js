@@ -12,6 +12,7 @@ import Settings from "./components/Settings"
 import FieldOfficerManagement from "./components/FieldOfficerManagement"
 import SalesmanManagement from "./components/SalesmanManagement"
 import Reports from "./components/Reports"
+import ErrorBoundary from "./components/ErrorBoundary"
 import { Toaster, toast } from "react-hot-toast"
 import "./index.css"
 
@@ -53,6 +54,7 @@ function App() {
   }
 
   return (
+    <ErrorBoundary>
     <Router>
       <div className="flex h-screen bg-gray-100">
         {/* Sidebar */}
@@ -130,6 +132,7 @@ function App() {
         <Toaster position="top-right" />
       </div>
     </Router>
+    </ErrorBoundary>
   )
 }
 
