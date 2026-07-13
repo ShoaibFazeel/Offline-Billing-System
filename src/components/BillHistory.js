@@ -6,11 +6,13 @@ import toast from "react-hot-toast"
 import configService from "../services/ConfigService"
 import { useLazyData } from "../hooks/useLazyData"
 import dataService from "../services/DataService"
+import storageService from "../services/StorageService"
 
 function BillHistory() {
   const {
     data: bills,
     loading: billsLoading,
+    error: billsError,
     search: searchBills,
     refresh: refreshBills,
     loadMore,
@@ -123,6 +125,19 @@ function BillHistory() {
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
+        {billsError && (
+          <div className="border-b border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <div className="flex items-center justify-between gap-3">
+              <span>{billsError}</span>
+              <button
+                onClick={() => refreshBills()}
+                className="rounded-md border border-red-300 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-100"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
         {billsLoading && bills.length === 0 && (
           <div className="p-8 text-center">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
@@ -170,7 +185,7 @@ function BillHistory() {
                         to={`/bill/${bill._id}`}
                         className="text-blue-600 hover:text-blue-900"
                         onClick={() => {
-                          localStorage.setItem("billSourcePage", "bills")
+                          storageService.setLocalItem("billSourcePage", "bills")
                         }}
                       >
                         View

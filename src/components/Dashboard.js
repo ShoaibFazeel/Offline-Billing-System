@@ -6,6 +6,7 @@ import { useDashboardStats } from "../hooks/useLazyData"
 import { useLazyData } from "../hooks/useLazyData"
 import dataService from "../services/DataService"
 import configService from "../services/ConfigService"
+import storageService from "../services/StorageService"
 
 function Dashboard() {
   // Use the dashboard stats hook
@@ -281,7 +282,7 @@ function Dashboard() {
                         to={`/bill/${bill._id}`}
                         className="text-blue-600 hover:text-blue-900"
                         onClick={() => {
-                          localStorage.setItem("billSourcePage", "dashboard")
+                          storageService.setLocalItem("billSourcePage", "dashboard")
                         }}
                       >
                         View

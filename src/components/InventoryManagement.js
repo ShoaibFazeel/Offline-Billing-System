@@ -10,6 +10,7 @@ function InventoryManagement() {
   const { 
     data: products, 
     loading: productsLoading, 
+    error: productsError,
     search: searchProducts, 
     refresh: refreshProducts,
     loadMore,
@@ -236,6 +237,19 @@ function InventoryManagement() {
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
+        {productsError && (
+          <div className="border-b border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <div className="flex items-center justify-between gap-3">
+              <span>{productsError}</span>
+              <button
+                onClick={() => refreshProducts()}
+                className="rounded-md border border-red-300 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-100"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
         {productsLoading && products.length === 0 && (
           <div className="p-8 text-center">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>

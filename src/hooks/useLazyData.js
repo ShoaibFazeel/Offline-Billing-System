@@ -73,7 +73,11 @@ export const useLazyData = (dataType, initialSearchTerm = '', initialLimit = 50,
       }
     } catch (err) {
       if (!abortControllerRef.current.signal.aborted) {
-        setError(err.message)
+        const message = err?.message || 'Unable to load data right now.'
+        setError(message)
+        setData([])
+        setHasMore(false)
+        setTotal(0)
       }
     } finally {
       if (!abortControllerRef.current.signal.aborted) {
@@ -122,7 +126,13 @@ export const useLazyData = (dataType, initialSearchTerm = '', initialLimit = 50,
           setTotal(result.total)
         }
       } catch (err) {
-        if (!abortControllerRef.current.signal.aborted) setError(err.message)
+        if (!abortControllerRef.current.signal.aborted) {
+          const message = err?.message || 'Unable to load data right now.'
+          setError(message)
+          setData([])
+          setHasMore(false)
+          setTotal(0)
+        }
       } finally {
         if (!abortControllerRef.current.signal.aborted) setLoading(false)
       }
@@ -131,7 +141,6 @@ export const useLazyData = (dataType, initialSearchTerm = '', initialLimit = 50,
 
   // Load more data
   const loadMore = useCallback(() => {
-    console.log(`LoadMore called: loading=${loading}, hasMore=${hasMore}, offset=${offset}`)
     if (!loading && hasMore && fetchDataRef.current) {
       fetchDataRef.current(searchTerm, false, offset)
     }

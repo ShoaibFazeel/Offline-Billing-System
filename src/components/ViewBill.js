@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import toast from "react-hot-toast"
 import configService from "../services/ConfigService"
+import storageService from "../services/StorageService"
 
 // Add this import at the top of the file
 import PdfGenerator from "./PdfGenerator"
@@ -501,16 +502,11 @@ function ViewBill() {
       await window.api.deleteBill(bill._id)
       toast.success("Bill deleted successfully")
       // Navigate back to bills list
-      const sourcePage = localStorage.getItem("billSourcePage") || "bills"
-      localStorage.removeItem("billSourcePage")
+      const sourcePage = storageService.getLocalItem("billSourcePage") || "bills"
+      storageService.removeLocalItem("billSourcePage")
 
-      if (sourcePage === "dashboard") {
-        window.location.hash = "#/"
-      } else if (sourcePage === "reports") {
-        window.location.hash = "#/reports"
-      } else {
-        window.location.hash = "#/bills"
-      }
+      const targetRoute = sourcePage === "dashboard" ? "#/" : sourcePage === "reports" ? "#/reports" : "#/bills"
+      window.location.hash = targetRoute
     } catch (error) {
       console.error("Error deleting bill:", error)
       toast.error("Failed to delete bill")
@@ -773,20 +769,10 @@ function ViewBill() {
           <button
             onClick={(e) => {
               e.preventDefault()
-              // Get the source page from localStorage, default to bills if not set
-              const sourcePage = localStorage.getItem("billSourcePage") || "bills"
-              // Clear the source page from localStorage
-              localStorage.removeItem("billSourcePage")
-
-              // Navigate to the appropriate page
-              if (sourcePage === "dashboard") {
-                window.location.hash = "#/"
-              } else if (sourcePage === "reports") {
-                window.location.hash = "#/reports"
-              } else {
-                // Default to bills
-                window.location.hash = "#/bills"
-              }
+              const sourcePage = storageService.getLocalItem("billSourcePage") || "bills"
+              storageService.removeLocalItem("billSourcePage")
+              const targetRoute = sourcePage === "dashboard" ? "#/" : sourcePage === "reports" ? "#/reports" : "#/bills"
+              window.location.hash = targetRoute
             }}
             className="bg-gray-200 hover:bg-gray-300 text-gray-800 p-2 rounded-md mr-4"
           >
