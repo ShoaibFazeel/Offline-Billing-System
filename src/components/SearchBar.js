@@ -8,6 +8,7 @@ const SearchBar = ({
   displayProperty,
   onSelect,
   className = "",
+  inputClassName = "w-full p-2 border border-gray-300 rounded-md",
   initialValue = "",
   searchTerm,
   setSearchTerm,
@@ -130,7 +131,7 @@ const SearchBar = ({
         onKeyDown={handleKeyDown}
         onFocus={() => setShowDropdown(currentSearchTerm.trim() !== "")}
         placeholder={placeholder}
-        className="w-full p-2 border border-gray-300 rounded-md"
+        className={inputClassName}
         autoComplete="off"
       />
 

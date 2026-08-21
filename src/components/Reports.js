@@ -1,10 +1,12 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import { Link } from "react-router-dom"
 import toast from "react-hot-toast"
 import GeneratePdfButton from "./GeneratePdfButton"
 import SearchBar from "./SearchBar"
 import configService from "../services/ConfigService"
+import storageService from "../services/StorageService"
 
 function Reports() {
   const getDefaultDateFilter = () => {
@@ -921,66 +923,128 @@ function Reports() {
     }
   }
 
+  const searchInputClassName =
+    "w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-medium transition-all"
+
+  const handleViewBill = () => {
+    storageService.setLocalItem("billSourcePage", "reports")
+  }
+
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+      <div className="max-w-7xl mx-auto p-12 text-center">
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <p className="mt-3 text-sm font-semibold text-gray-600">Loading Report Data...</p>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center h-64">
-        <div className="text-red-500 mb-4">{error}</div>
-        <button onClick={fetchData} className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700">
-          Try Again
-        </button>
+      <div className="max-w-7xl mx-auto p-4">
+        <div className="bg-red-50 border border-red-200 text-red-700 p-6 rounded-2xl shadow-sm flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold mb-1">Error Loading Report Data</h2>
+            <p className="text-sm">{error}</p>
+          </div>
+          <button onClick={fetchData} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-bold">
+            Try Again
+          </button>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="max-w-7xl mx-auto pb-12">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Reports</h1>
+    <div className="max-w-7xl mx-auto pb-12 px-2 sm:px-4">
+      {/* Top Header Banner */}
+      <div className="mb-6 bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-900 rounded-2xl shadow-xl p-6 text-white flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-white/10 backdrop-blur-md rounded-xl border border-white/10">
+            <svg className="w-7 h-7 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Sales Reports</h1>
+            <p className="text-blue-200 text-sm mt-0.5">Analyze daily sales, item performance, and invoice summaries</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-xl border border-white/15">
+          <svg className="w-5 h-5 text-blue-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div>
+            <span className="text-xs uppercase tracking-wider text-blue-200 font-semibold block">
+              {reportType === "daily" ? "Filtered Total" : "Item Total"}
+            </span>
+            <span className="text-lg sm:text-xl font-bold tracking-tight text-white">
+              PKR {(reportType === "daily" ? calculateGrandTotal : itemTotals.totalAmount).toLocaleString("en-PK", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </span>
+          </div>
+        </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8 mb-8 transition-all">
-        <div className="mb-8 border-b border-gray-100 pb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-bold text-gray-800">Report Filters</h2>
-            <p className="text-sm text-gray-500 mt-1">Configure parameters to generate your desired report.</p>
-          </div>
-          <div className="flex bg-gray-100 p-1 rounded-xl w-max border border-gray-200">
+      {/* Filter Card */}
+      <div className="bg-white rounded-2xl shadow-md border border-slate-200/80 p-5 mb-6">
+        <div className="mb-5">
+          <label className="block text-gray-700 text-xs font-bold uppercase tracking-wider mb-2">Report Type</label>
+          <div className="grid grid-cols-2 gap-1 p-1.5 bg-slate-100 border border-slate-200 rounded-2xl shadow-inner">
             <button
               onClick={() => setReportType("daily")}
-              className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                reportType === "daily" 
-                  ? "bg-white text-purple-700 shadow-sm ring-1 ring-black/5" 
-                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-200/50"
+              aria-pressed={reportType === "daily"}
+              className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all ${
+                reportType === "daily"
+                  ? "bg-blue-600 text-white shadow-md shadow-blue-200"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
               }`}
             >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 13h4v8H3v-8zm7-6h4v14h-4V7zm7-4h4v18h-4V3z" />
+              </svg>
               Daily Sale Report
             </button>
             <button
               onClick={() => setReportType("item")}
-              className={`px-6 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                reportType === "item" 
-                  ? "bg-white text-purple-700 shadow-sm ring-1 ring-black/5" 
-                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-200/50"
+              aria-pressed={reportType === "item"}
+              className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all ${
+                reportType === "item"
+                  ? "bg-emerald-600 text-white shadow-md shadow-emerald-200"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
               }`}
             >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h10" />
+              </svg>
               Item Report
             </button>
           </div>
         </div>
 
-        <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-${reportType === 'daily' ? '2' : '3'} gap-5 mb-5`}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-bold text-gray-800 uppercase tracking-wider flex items-center gap-2">
+            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            Report Filters
+          </h2>
+          <button
+            onClick={handleResetFilters}
+            className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+          >
+            Reset Filters
+          </button>
+        </div>
+
+        <div className={`grid grid-cols-1 md:grid-cols-2 ${reportType === "item" ? "lg:grid-cols-3" : ""} gap-4 mb-4`}>
           {reportType === "daily" ? (
             <>
               <div>
-                <label className="block text-slate-600 text-xs font-semibold mb-2 uppercase tracking-wide">Address Filter</label>
+                <label className="block text-gray-700 text-xs font-bold uppercase tracking-wider mb-1.5">Address Filter</label>
                 <SearchBar
                   placeholder="Filter by address..."
                   items={addresses}
@@ -989,27 +1053,27 @@ function Reports() {
                   initialValue={addressFilter}
                   searchTerm={addressFilter}
                   setSearchTerm={setAddressFilter}
-                  className="w-full p-0.5 border border-gray-200 rounded-lg bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-purple-500/20 focus-within:border-purple-500 transition-all outline-none"
+                  inputClassName={searchInputClassName}
                 />
               </div>
               <div>
-                <label className="block text-slate-600 text-xs font-semibold mb-2 uppercase tracking-wide">Company Filter</label>
+                <label className="block text-gray-700 text-xs font-bold uppercase tracking-wider mb-1.5">Company Filter</label>
                 <SearchBar
                   placeholder="Search company..."
-                  items={companies.map(c => ({ _id: c, name: c }))}
+                  items={companies.map((c) => ({ _id: c, name: c }))}
                   displayProperty="name"
                   onSelect={handleCompanySelect}
                   initialValue={companyFilter}
                   searchTerm={companyFilter}
                   setSearchTerm={setCompanyFilter}
-                  className="w-full p-0.5"
+                  inputClassName={searchInputClassName}
                 />
               </div>
             </>
           ) : (
             <>
               <div>
-                <label className="block text-slate-600 text-xs font-semibold mb-2 uppercase tracking-wide">Select Product</label>
+                <label className="block text-gray-700 text-xs font-bold uppercase tracking-wider mb-1.5">Select Product</label>
                 <SearchBar
                   placeholder="Search product..."
                   items={products}
@@ -1018,24 +1082,24 @@ function Reports() {
                   initialValue={selectedProduct}
                   searchTerm={selectedProduct}
                   setSearchTerm={setSelectedProduct}
-                  className="w-full p-0.5 border border-gray-200 rounded-lg bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-purple-500/20 focus-within:border-purple-500 transition-all outline-none"
+                  inputClassName={searchInputClassName}
                 />
               </div>
               <div>
-                <label className="block text-slate-600 text-xs font-semibold mb-2 uppercase tracking-wide">Company Filter</label>
+                <label className="block text-gray-700 text-xs font-bold uppercase tracking-wider mb-1.5">Company Filter</label>
                 <SearchBar
                   placeholder="Search company..."
-                  items={companies.map(c => ({ _id: c, name: c }))}
+                  items={companies.map((c) => ({ _id: c, name: c }))}
                   displayProperty="name"
                   onSelect={handleCompanySelect}
                   initialValue={companyFilter}
                   searchTerm={companyFilter}
                   setSearchTerm={setCompanyFilter}
-                  className="w-full p-0.5"
+                  inputClassName={searchInputClassName}
                 />
               </div>
               <div>
-                <label className="block text-slate-600 text-xs font-semibold mb-2 uppercase tracking-wide">Address Filter</label>
+                <label className="block text-gray-700 text-xs font-bold uppercase tracking-wider mb-1.5">Address Filter</label>
                 <SearchBar
                   placeholder="Filter by address..."
                   items={addresses}
@@ -1044,73 +1108,68 @@ function Reports() {
                   initialValue={addressFilter}
                   searchTerm={addressFilter}
                   setSearchTerm={setAddressFilter}
-                  className="w-full p-0.5 border border-gray-200 rounded-lg bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-purple-500/20 focus-within:border-purple-500 transition-all outline-none"
+                  inputClassName={searchInputClassName}
                 />
               </div>
             </>
           )}
+
           <div>
-            <label className="block text-slate-600 text-xs font-semibold mb-2 uppercase tracking-wide">Search Client/Invoice</label>
-            <input
-              type="text"
-              placeholder="Search..."
-              className="w-full p-2.5 border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+            <label className="block text-gray-700 text-xs font-bold uppercase tracking-wider mb-1.5">Search Client / Invoice</label>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Type party name or invoice number..."
+                className={`${searchInputClassName}`}
+                value={searchTerm}
+                onChange={(e) => handleSearch(e.target.value)}
+              />
+              <svg className="w-4 h-4 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mb-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="block text-slate-600 text-xs font-semibold mb-2 uppercase tracking-wide">From Date</label>
+            <label className="block text-gray-700 text-xs font-bold uppercase tracking-wider mb-1.5">From Date</label>
             <input
               type="date"
               name="from"
-              className="w-full p-2.5 border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none text-gray-700"
+              className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-medium transition-all"
               value={dateFilter.from}
               onChange={handleDateFilterChange}
             />
           </div>
           <div>
-            <label className="block text-slate-600 text-xs font-semibold mb-2 uppercase tracking-wide">To Date</label>
+            <label className="block text-gray-700 text-xs font-bold uppercase tracking-wider mb-1.5">To Date</label>
             <input
               type="date"
               name="to"
-              className="w-full p-2.5 border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none text-gray-700"
+              className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-medium transition-all"
               value={dateFilter.to}
               onChange={handleDateFilterChange}
             />
           </div>
-          <div className="flex items-end">
-            <button
-              onClick={handleResetFilters}
-              className="w-full sm:w-auto px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors flex items-center justify-center text-sm border border-gray-200 h-[42px]"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-              Reset Filters
-            </button>
-          </div>
         </div>
 
-        <div className="mb-5">
-          <button 
-            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-            className="text-purple-600 hover:text-purple-700 font-semibold text-sm flex items-center transition-colors"
-          >
-            {showAdvancedFilters ? "Hide Advanced Filters" : "Show Advanced Filters"}
-            <svg className={`w-4 h-4 ml-1 transition-transform ${showAdvancedFilters ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
-            </svg>
-          </button>
-        </div>
+        <button
+          onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+          className="text-blue-600 hover:text-blue-800 font-bold text-xs uppercase tracking-wider flex items-center transition-colors mb-4"
+        >
+          {showAdvancedFilters ? "Hide Advanced Filters" : "Show Advanced Filters"}
+          <svg className={`w-4 h-4 ml-1 transition-transform ${showAdvancedFilters ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
 
         {showAdvancedFilters && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-8 p-5 bg-slate-50 rounded-xl border border-slate-200/60 shadow-inner">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 p-4 bg-slate-50 rounded-xl border border-gray-200">
             <div>
-              <label className="block text-slate-600 text-xs font-semibold mb-2 uppercase tracking-wide">Salesman Filter</label>
+              <label className="block text-gray-700 text-xs font-bold uppercase tracking-wider mb-1.5">Salesman Filter</label>
               <select
-                className="w-full p-2.5 border border-gray-200 rounded-lg bg-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none"
+                className="w-full p-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-medium transition-all"
                 value={salesmanFilter}
                 onChange={(e) => setSalesmanFilter(e.target.value)}
               >
@@ -1121,9 +1180,9 @@ function Reports() {
               </select>
             </div>
             <div>
-              <label className="block text-slate-600 text-xs font-semibold mb-2 uppercase tracking-wide">Field Officer Filter</label>
+              <label className="block text-gray-700 text-xs font-bold uppercase tracking-wider mb-1.5">Field Officer Filter</label>
               <select
-                className="w-full p-2.5 border border-gray-200 rounded-lg bg-white focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all outline-none"
+                className="w-full p-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-medium transition-all"
                 value={fieldOfficerFilter}
                 onChange={(e) => setFieldOfficerFilter(e.target.value)}
               >
@@ -1137,44 +1196,53 @@ function Reports() {
         )}
 
         {reportType === "daily" && (
-          <div className="mb-6">
-            <label className="block text-slate-600 text-xs font-semibold mb-3 uppercase tracking-wide">Group By</label>
+          <div className="mb-4">
+            <label className="block text-gray-700 text-xs font-bold uppercase tracking-wider mb-2">Group By</label>
             <div className="flex flex-wrap gap-2">
-              {['address', 'client', 'date'].map((type) => (
+              {["address", "client", "date"].map((type) => (
                 <button
                   key={type}
                   onClick={() => setGroupBy(type)}
-                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors border ${
                     groupBy === type
-                      ? "bg-purple-100 border-purple-200 text-purple-700 shadow-sm"
+                      ? "bg-blue-100 border-blue-200 text-blue-800 shadow-sm"
                       : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"
                   }`}
                 >
-                  {type.charAt(0).toUpperCase() + type.slice(1)} {type === 'date' ? '(Month/Year)' : ''}
+                  {type.charAt(0).toUpperCase() + type.slice(1)}{type === "date" ? " (Month/Year)" : ""}
                 </button>
               ))}
             </div>
           </div>
         )}
 
-        <div className="flex flex-col sm:flex-row justify-between items-center mt-8 pt-6 border-t border-gray-100 gap-4">
-          <button onClick={fetchData} className="flex items-center text-gray-600 bg-gray-100 hover:bg-gray-200 px-5 py-2.5 rounded-lg font-medium transition-colors text-sm w-full sm:w-auto justify-center">
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+        <div className="pt-4 border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-3">
+          <button
+            onClick={fetchData}
+            className="flex items-center gap-2 text-gray-600 bg-gray-100 hover:bg-gray-200 px-5 py-2.5 rounded-xl font-bold transition-colors text-sm w-full sm:w-auto justify-center border border-gray-200"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
             Refresh Data
           </button>
           <div className="flex gap-3 w-full sm:w-auto">
             <button
               onClick={printReportPdf}
-              className="flex-1 sm:flex-none flex items-center justify-center bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 px-5 py-2.5 rounded-lg font-medium transition-colors shadow-sm text-sm"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-5 py-2.5 rounded-xl font-bold transition-colors shadow-sm text-sm"
             >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
               Print Report
             </button>
             <button
               onClick={generateReportPdf}
-              className="flex-1 sm:flex-none flex items-center justify-center bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white px-5 py-2.5 rounded-lg font-medium transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 text-sm"
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-md hover:shadow-lg text-sm"
             >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
               Generate PDF
             </button>
           </div>
@@ -1183,67 +1251,64 @@ function Reports() {
 
       {reportType === "daily" ? (
         groupedBills.length > 0 ? (
-          <div className="space-y-8">
+          <div className="space-y-6">
             {groupedBills.map((group, groupIndex) => (
-              <div key={groupIndex} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="bg-gradient-to-r from-slate-50 to-white px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
-                  <div className="flex items-center">
-                    <div className="w-1.5 h-6 bg-purple-500 rounded-full mr-3"></div>
-                    <h2 className="text-lg font-bold text-gray-800">{group.groupName}</h2>
+              <div key={groupIndex} className="bg-white rounded-2xl shadow-md border border-slate-200/80 overflow-hidden">
+                <div className="p-4 bg-slate-50 border-b border-gray-200 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-gray-800 text-sm">{group.groupName}</h3>
+                    <span className="px-2.5 py-0.5 bg-blue-100 text-blue-800 text-xs font-bold rounded-full">
+                      {group.bills.length} invoice{group.bills.length !== 1 ? "s" : ""}
+                    </span>
                   </div>
-                  <div className="text-right sm:text-left">
-                    <div className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Total Amount</div>
-                    <div className="text-xl font-bold text-purple-700">PKR {group.totalAmount.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                  <div className="text-sm font-extrabold text-blue-700">
+                    PKR {group.totalAmount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </div>
                 </div>
 
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-white">
+                    <thead className="bg-slate-50">
                       <tr>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                          Invoice No.
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                          Party Name
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                          Address
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                          Amount
-                        </th>
-                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                          Actions
-                        </th>
+                        <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Invoice No.</th>
+                        <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Party Name</th>
+                        <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Address</th>
+                        <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Amount</th>
+                        <th className="px-6 py-3.5 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-100">
+                    <tbody className="bg-white divide-y divide-gray-200">
                       {group.bills.map((bill) => (
-                        <tr key={bill._id} className="hover:bg-slate-50 transition-colors duration-150">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                            #{bill.billId ? bill.billId : bill._id}
+                        <tr key={bill._id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-blue-700">
+                            <span className="px-2.5 py-1 bg-blue-50 border border-blue-200 rounded-lg">
+                              #{bill.billId ? bill.billId : bill._id}
+                            </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-medium">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
                             {bill.clientName || getClientName(bill.clientId)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {bill.clientAddress || getClientAddress(bill.clientId)}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-700">
-                            PKR {bill.totalAmount ? bill.totalAmount.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : "0.00"}
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-extrabold text-gray-900">
+                            PKR {(bill.totalAmount || 0).toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium flex items-center gap-3">
-                            <a
-                              href={`#/bill/${bill._id}`}
-                              className="text-purple-600 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-md transition-colors"
-                              onClick={() => {
-                                storageService.setLocalItem("billSourcePage", "reports")
-                              }}
-                            >
-                              View
-                            </a>
-                            <GeneratePdfButton bill={bill} />
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
+                            <div className="flex justify-end items-center gap-2">
+                              <Link
+                                to={`/bill/${bill._id}`}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl text-xs font-bold transition-colors"
+                                onClick={handleViewBill}
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                View
+                              </Link>
+                              <GeneratePdfButton bill={bill} />
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1253,79 +1318,99 @@ function Reports() {
               </div>
             ))}
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex justify-end">
-              <div className="text-right">
-                <div className="text-sm text-gray-500 font-bold uppercase tracking-wider mb-1">Grand Total</div>
-                <div className="text-3xl font-extrabold text-gray-900">
-                  PKR {calculateGrandTotal.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
-                </div>
+            <div className="bg-white rounded-2xl shadow-md border border-slate-200/80 p-4 flex justify-between items-center">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Grand Total</span>
+              <div className="text-xl font-black text-gray-900">
+                PKR {calculateGrandTotal.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
             </div>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
-            <div className="w-20 h-20 mx-auto bg-slate-50 rounded-full flex items-center justify-center mb-4">
-              <svg className="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+          <div className="bg-white rounded-2xl shadow-md border border-slate-200/80 p-12 text-center">
+            <div className="w-12 h-12 bg-slate-100 text-gray-400 rounded-full flex items-center justify-center mx-auto mb-3">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
             </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-1">No reports found</h3>
-            <p className="text-gray-500">
+            <h3 className="text-sm font-bold text-gray-900 mb-1">No reports found</h3>
+            <p className="text-sm text-gray-500">
               {addressFilter || dateFilter.from || dateFilter.to || searchTerm
-                ? "We couldn't find any bills matching your current filter criteria."
+                ? "No bills match your current filter criteria."
                 : "There are no bills available to display."}
             </p>
           </div>
         )
       ) : (
-        // Item Report table rendering
         itemReportData.length > 0 ? (
-          <div className="space-y-8">
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl shadow-md border border-slate-200/80 overflow-hidden">
+              <div className="p-4 bg-slate-50 border-b border-gray-200 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-gray-800 text-sm">Item Sales</h3>
+                  {selectedProductObj && (
+                    <span className="px-2.5 py-0.5 bg-blue-100 text-blue-800 text-xs font-bold rounded-full">
+                      {selectedProductObj.productName}
+                    </span>
+                  )}
+                </div>
+                <span className="px-2.5 py-0.5 bg-blue-100 text-blue-800 text-xs font-bold rounded-full">
+                  {itemReportData.length} record{itemReportData.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-white">
+                  <thead className="bg-slate-50">
                     <tr>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Invoice No.</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Party Name</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Address</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Quantity</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
+                      <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Invoice No.</th>
+                      <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Date</th>
+                      <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Party Name</th>
+                      <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Address</th>
+                      <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Quantity</th>
+                      <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Amount</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-100">
+                  <tbody className="bg-white divide-y divide-gray-200">
                     {itemReportData.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50 transition-colors duration-150">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">#{item.billId}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{configService.formatDate(item.billDate)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-medium">{item.clientName}</td>
+                      <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-blue-700">
+                          <span className="px-2.5 py-1 bg-blue-50 border border-blue-200 rounded-lg">#{item.billId}</span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-medium">
+                          {configService.formatDate(item.billDate)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">{item.clientName}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.clientAddress}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-700">{item.quantity}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">PKR {item.amount.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-extrabold text-gray-900">
+                          PKR {item.amount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col sm:flex-row justify-between items-center gap-4">
-              <div className="bg-purple-50 px-6 py-3 rounded-xl border border-purple-100 flex items-center w-full sm:w-auto">
-                <div className="text-sm text-purple-600 font-bold uppercase tracking-wider mr-4">Total Quantity</div>
-                <div className="text-2xl font-black text-purple-700">{itemTotals.totalQuantity}</div>
-              </div>
-              <div className="text-right w-full sm:w-auto">
-                <div className="text-sm text-gray-500 font-bold uppercase tracking-wider mb-1">Total Amount</div>
-                <div className="text-3xl font-extrabold text-gray-900">PKR {itemTotals.totalAmount.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+              <div className="p-4 border-t border-gray-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-center gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Quantity</span>
+                  <span className="px-2.5 py-1 bg-blue-100 text-blue-800 text-sm font-black rounded-lg">{itemTotals.totalQuantity}</span>
+                </div>
+                <div className="text-xl font-black text-gray-900">
+                  PKR {itemTotals.totalAmount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
               </div>
             </div>
           </div>
         ) : (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
-            <div className="w-20 h-20 mx-auto bg-slate-50 rounded-full flex items-center justify-center mb-4">
-              <svg className="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+          <div className="bg-white rounded-2xl shadow-md border border-slate-200/80 p-12 text-center">
+            <div className="w-12 h-12 bg-slate-100 text-gray-400 rounded-full flex items-center justify-center mx-auto mb-3">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
             </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-1">No sales found</h3>
-            <p className="text-gray-500">
+            <h3 className="text-sm font-bold text-gray-900 mb-1">No sales found</h3>
+            <p className="text-sm text-gray-500">
               {selectedProductObj
                 ? "No sales found for this product in the selected date range."
                 : "Please select a product and date range to view the report."}
