@@ -30,19 +30,17 @@ function Settings() {
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false)
 
   useEffect(() => {
-    // Check if user is already authenticated in this session
-    const sessionAuth = storageService.getSessionItem("isAuthenticated")
-    if (sessionAuth === "true") {
-      setIsAuthenticated(true)
+    const initialize = async () => {
+      const sessionAuth = storageService.getSessionItem("isAuthenticated")
+      if (sessionAuth === "true") {
+        setIsAuthenticated(true)
+      }
+
+      await Promise.all([fetchCompanyInfo(), fetchAppConfig()])
+      setIsLoading(false)
     }
 
-    // Fetch company info
-    fetchCompanyInfo()
-
-    // Fetch app config
-    fetchAppConfig()
-
-    setIsLoading(false)
+    initialize()
   }, [])
 
   const fetchCompanyInfo = async () => {
@@ -73,7 +71,6 @@ function Settings() {
     try {
       const credentials = await window.api.getCredentials()
 
-      // Default credentials if none are set
       const validUsername = credentials?.username || "admin"
       const validPassword = credentials?.password || "admin"
 
@@ -290,7 +287,6 @@ function Settings() {
           return
       }
 
-      // Create a blob and download
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" })
       const url = URL.createObjectURL(blob)
       const link = document.createElement("a")
@@ -381,117 +377,151 @@ function Settings() {
   }
 
   if (isLoading) {
-    return <div className="text-center py-10">Loading...</div>
+    return (
+      <div className="max-w-7xl mx-auto p-12 text-center">
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <p className="mt-3 text-sm font-semibold text-gray-600">Loading Settings...</p>
+      </div>
+    )
   }
 
   if (!isAuthenticated) {
     return (
-      <div className="flex items-center justify-center min-h-[80vh]">
-        <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-          <h1 className="text-2xl font-bold mb-6 text-center">Settings Login</h1>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
-                Username
-              </label>
-              <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-md"
-                required
-              />
+      <div className="max-w-7xl mx-auto pb-12 px-2 sm:px-4">
+        {/* Top Header */}
+        <div className="mb-8 bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-900 rounded-2xl shadow-xl p-6 text-white flex items-center gap-3">
+          <div className="p-2.5 bg-white/10 backdrop-blur-md rounded-xl border border-white/10">
+            <svg className="w-7 h-7 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Application Settings</h1>
+            <p className="text-blue-200 text-sm mt-0.5">Authenticate to access configuration options</p>
+          </div>
+        </div>
+
+        {/* Login Card */}
+        <div className="flex justify-center">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-8 w-full max-w-md">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-100">
+                <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-extrabold text-gray-900">Settings Access</h2>
+              <p className="text-sm text-gray-500 mt-1">Enter your credentials to continue</p>
             </div>
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded-md"
-                required
-              />
-            </div>
-            <div>
-              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md">
-                Login
+
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label htmlFor="username" className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
+                  Username
+                </label>
+                <input
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="password" className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
+                  Password
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl shadow-md transition-all"
+              >
+                Login to Settings
               </button>
-            </div>
-            <div className="text-sm text-gray-500 text-center">
-              Default credentials: username "admin", password "admin"
-            </div>
-          </form>
+              <p className="text-xs text-gray-400 text-center">Default credentials: admin / admin</p>
+            </form>
+          </div>
         </div>
       </div>
     )
   }
 
+  const tabs = [
+    { id: "account", label: "Account", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
+    { id: "company", label: "Company", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" },
+    { id: "database", label: "Database", icon: "M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" },
+    { id: "backup", label: "Backup & Restore", icon: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" },
+    { id: "application", label: "Application", icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
+    { id: "updates", label: "Updates", icon: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" },
+  ]
+
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Settings</h1>
-        <button onClick={handleLogout} className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-md">
+    <div className="max-w-7xl mx-auto pb-12 px-2 sm:px-4">
+      {/* Top Header Card */}
+      <div className="mb-6 bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-900 rounded-2xl shadow-xl p-6 text-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-white/10 backdrop-blur-md rounded-xl border border-white/10">
+            <svg className="w-7 h-7 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Application Settings</h1>
+            <p className="text-blue-200 text-sm mt-0.5">Configure company info, account credentials, and system preferences</p>
+          </div>
+        </div>
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 font-bold px-4 py-2 rounded-xl text-xs transition-all"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
           Logout
         </button>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="flex border-b">
-          <button
-            className={`px-4 py-3 font-medium ${activeTab === "account" ? "bg-blue-50 text-blue-600 border-b-2 border-blue-600" : "text-gray-600"
+      <div className="bg-white rounded-2xl shadow-md border border-slate-200/80 overflow-hidden">
+        {/* Tab Navigation */}
+        <div className="flex border-b border-gray-200 bg-slate-50 overflow-x-auto">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              className={`flex items-center gap-1.5 px-4 py-3.5 font-bold text-xs uppercase tracking-wider whitespace-nowrap transition-all ${
+                activeTab === tab.id
+                  ? "bg-white text-blue-700 border-b-2 border-blue-600 shadow-sm"
+                  : "text-gray-500 hover:text-gray-800 hover:bg-gray-100"
               }`}
-            onClick={() => setActiveTab("account")}
-          >
-            Account
-          </button>
-          <button
-            className={`px-4 py-3 font-medium ${activeTab === "company" ? "bg-blue-50 text-blue-600 border-b-2 border-blue-600" : "text-gray-600"
-              }`}
-            onClick={() => setActiveTab("company")}
-          >
-            Company Information
-          </button>
-          <button
-            className={`px-4 py-3 font-medium ${activeTab === "database" ? "bg-blue-50 text-blue-600 border-b-2 border-blue-600" : "text-gray-600"
-              }`}
-            onClick={() => setActiveTab("database")}
-          >
-            Database Management
-          </button>
-          <button
-            className={`px-4 py-3 font-medium ${activeTab === "backup" ? "bg-blue-50 text-blue-600 border-b-2 border-blue-600" : "text-gray-600"
-              }`}
-            onClick={() => setActiveTab("backup")}
-          >
-            Backup & Restore
-          </button>
-          <button
-            className={`px-4 py-3 font-medium ${activeTab === "application" ? "bg-blue-50 text-blue-600 border-b-2 border-blue-600" : "text-gray-600"
-              }`}
-            onClick={() => setActiveTab("application")}
-          >
-            Application
-          </button>
-          <button
-            className={`px-4 py-3 font-medium ${activeTab === "updates" ? "bg-blue-50 text-blue-600 border-b-2 border-blue-600" : "text-gray-600"
-              }`}
-            onClick={() => setActiveTab("updates")}
-          >
-            Updates
-          </button>
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={tab.icon} />
+              </svg>
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        <div className="p-6">
+        <div className="p-6 sm:p-8">
+          {/* ACCOUNT TAB */}
           {activeTab === "account" && (
-            <div>
-              <h2 className="text-xl font-semibold mb-4">Change Username and Password</h2>
-              <form onSubmit={handleChangeCredentials} className="space-y-4 max-w-md">
+            <div className="max-w-md">
+              <div className="mb-6 pb-4 border-b border-gray-100">
+                <h2 className="text-lg font-extrabold text-gray-900">Change Login Credentials</h2>
+                <p className="text-xs text-gray-500 mt-1">Update your admin username and password</p>
+              </div>
+              <form onSubmit={handleChangeCredentials} className="space-y-4">
                 <div>
-                  <label htmlFor="newUsername" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="newUsername" className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
                     New Username
                   </label>
                   <input
@@ -499,12 +529,12 @@ function Settings() {
                     type="text"
                     value={newUsername}
                     onChange={(e) => setNewUsername(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-md"
+                    className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500"
                     placeholder="Leave blank to keep current username"
                   />
                 </div>
                 <div>
-                  <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="newPassword" className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
                     New Password
                   </label>
                   <input
@@ -512,12 +542,12 @@ function Settings() {
                     type="password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-md"
+                    className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500"
                     required
                   />
                 </div>
                 <div>
-                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="confirmPassword" className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
                     Confirm New Password
                   </label>
                   <input
@@ -525,26 +555,31 @@ function Settings() {
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded-md"
+                    className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500"
                     required
                   />
                 </div>
-                <div>
-                  <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md">
-                    Update Credentials
-                  </button>
-                </div>
+                <button
+                  type="submit"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-md transition-all text-sm"
+                >
+                  Update Credentials
+                </button>
               </form>
             </div>
           )}
 
+          {/* COMPANY TAB */}
           {activeTab === "company" && (
-            <div>
-              <h2 className="text-xl font-semibold mb-4">Company Information</h2>
-              <form onSubmit={saveCompanyInfo} className="space-y-4 max-w-md">
+            <div className="max-w-lg">
+              <div className="mb-6 pb-4 border-b border-gray-100">
+                <h2 className="text-lg font-extrabold text-gray-900">Company Information</h2>
+                <p className="text-xs text-gray-500 mt-1">This info will appear on all generated invoices and reports</p>
+              </div>
+              <form onSubmit={saveCompanyInfo} className="space-y-4">
                 <div>
-                  <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">
-                    Company Name
+                  <label htmlFor="companyName" className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
+                    Company Name *
                   </label>
                   <input
                     id="companyName"
@@ -552,137 +587,130 @@ function Settings() {
                     type="text"
                     value={companyInfo.companyName}
                     onChange={handleCompanyInfoChange}
-                    className="w-full p-2 border border-gray-300 rounded-md"
+                    className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500"
                     required
                   />
                 </div>
                 <div>
-                  <label htmlFor="companyAddress" className="block text-sm font-medium text-gray-700 mb-1">
-                    Company Address
+                  <label htmlFor="companyAddress" className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
+                    Company Address *
                   </label>
                   <textarea
                     id="companyAddress"
                     name="companyAddress"
                     value={companyInfo.companyAddress}
                     onChange={handleCompanyInfoChange}
-                    className="w-full p-2 border border-gray-300 rounded-md"
+                    className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500"
                     rows="3"
                     required
                   ></textarea>
                 </div>
-                <div>
-                  <label htmlFor="ownerName" className="block text-sm font-medium text-gray-700 mb-1">
-                    Owner Name
-                  </label>
-                  <input
-                    id="ownerName"
-                    name="ownerName"
-                    type="text"
-                    value={companyInfo.ownerName}
-                    onChange={handleCompanyInfoChange}
-                    className="w-full p-2 border border-gray-300 rounded-md"
-                    required
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="ownerName" className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
+                      Owner Name *
+                    </label>
+                    <input
+                      id="ownerName"
+                      name="ownerName"
+                      type="text"
+                      value={companyInfo.ownerName}
+                      onChange={handleCompanyInfoChange}
+                      className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="ownerPhone" className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
+                      Owner Phone *
+                    </label>
+                    <input
+                      id="ownerPhone"
+                      name="ownerPhone"
+                      type="text"
+                      value={companyInfo.ownerPhone}
+                      onChange={handleCompanyInfoChange}
+                      className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="managerName" className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
+                      General Manager Name *
+                    </label>
+                    <input
+                      id="managerName"
+                      name="managerName"
+                      type="text"
+                      value={companyInfo.managerName}
+                      onChange={handleCompanyInfoChange}
+                      className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="managerPhone" className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
+                      General Manager Phone *
+                    </label>
+                    <input
+                      id="managerPhone"
+                      name="managerPhone"
+                      type="text"
+                      value={companyInfo.managerPhone}
+                      onChange={handleCompanyInfoChange}
+                      className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label htmlFor="ownerPhone" className="block text-sm font-medium text-gray-700 mb-1">
-                    Owner Phone
-                  </label>
-                  <input
-                    id="ownerPhone"
-                    name="ownerPhone"
-                    type="text"
-                    value={companyInfo.ownerPhone}
-                    onChange={handleCompanyInfoChange}
-                    className="w-full p-2 border border-gray-300 rounded-md"
-                    required
-                  />
-                </div>
-                <div>
-                  <label htmlFor="managerName" className="block text-sm font-medium text-gray-700 mb-1">
-                    General Manager Name
-                  </label>
-                  <input
-                    id="managerName"
-                    name="managerName"
-                    type="text"
-                    value={companyInfo.managerName}
-                    onChange={handleCompanyInfoChange}
-                    className="w-full p-2 border border-gray-300 rounded-md"
-                    required
-                  />
-                </div>
-                <div>
-                  <label htmlFor="managerPhone" className="block text-sm font-medium text-gray-700 mb-1">
-                    General Manager Phone
-                  </label>
-                  <input
-                    id="managerPhone"
-                    name="managerPhone"
-                    type="text"
-                    value={companyInfo.managerPhone}
-                    onChange={handleCompanyInfoChange}
-                    className="w-full p-2 border border-gray-300 rounded-md"
-                    required
-                  />
-                </div>
-                <div>
-                  <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md">
-                    Save Company Information
-                  </button>
-                </div>
+                <button
+                  type="submit"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-md transition-all text-sm"
+                >
+                  Save Company Information
+                </button>
               </form>
             </div>
           )}
 
+          {/* DATABASE TAB */}
           {activeTab === "database" && (
             <div>
-              <h2 className="text-xl font-semibold mb-4">Database Management</h2>
+              <div className="mb-6 pb-4 border-b border-gray-100">
+                <h2 className="text-lg font-extrabold text-gray-900">Database Management</h2>
+                <p className="text-xs text-gray-500 mt-1">Clear specific collections from the local database</p>
+              </div>
               <div className="space-y-6">
-                <div className="p-4 border border-gray-200 rounded-md">
-                  <h3 className="text-lg font-medium mb-2">Clear Specific Data</h3>
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      onClick={() => clearDatabase("products")}
-                      className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 py-2 px-4 rounded-md"
-                    >
-                      Clear All Products
-                    </button>
-                    <button
-                      onClick={() => clearDatabase("clients")}
-                      className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 py-2 px-4 rounded-md"
-                    >
-                      Clear All Clients
-                    </button>
-                    <button
-                      onClick={() => clearDatabase("bills")}
-                      className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 py-2 px-4 rounded-md"
-                    >
-                      Clear All Bills
-                    </button>
-                    <button
-                      onClick={() => clearDatabase("fieldOfficers")}
-                      className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 py-2 px-4 rounded-md"
-                    >
-                      Clear All Field Officers
-                    </button>
-                    <button
-                      onClick={() => clearDatabase("salesmen")}
-                      className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 py-2 px-4 rounded-md"
-                    >
-                      Clear All Salesmen
-                    </button>
+                <div className="p-5 bg-amber-50 border border-amber-200 rounded-2xl">
+                  <h3 className="text-sm font-extrabold text-amber-900 mb-1">Clear Specific Data</h3>
+                  <p className="text-xs text-amber-700 mb-4">This will permanently remove the selected data set.</p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { key: "products", label: "Clear Products" },
+                      { key: "clients", label: "Clear Clients" },
+                      { key: "bills", label: "Clear Bills" },
+                      { key: "fieldOfficers", label: "Clear Field Officers" },
+                      { key: "salesmen", label: "Clear Salesmen" },
+                    ].map((item) => (
+                      <button
+                        key={item.key}
+                        onClick={() => clearDatabase(item.key)}
+                        className="bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold py-2 px-4 rounded-xl text-xs border border-amber-300 transition-colors"
+                      >
+                        {item.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                <div className="p-4 border border-red-200 rounded-md bg-red-50">
-                  <h3 className="text-lg font-medium mb-2">Danger Zone</h3>
-                  <p className="text-sm text-red-600 mb-3">
-                    Warning: This action will delete all data and cannot be undone.
+                <div className="p-5 bg-red-50 border border-red-200 rounded-2xl">
+                  <h3 className="text-sm font-extrabold text-red-900 mb-1">⚠️ Danger Zone</h3>
+                  <p className="text-xs text-red-600 mb-4">
+                    Warning: This action will permanently delete ALL data from the database and cannot be undone.
                   </p>
                   <button
                     onClick={() => clearDatabase("all")}
-                    className="bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-md"
+                    className="bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-5 rounded-xl text-sm shadow-md transition-all"
                   >
                     Clear All Data
                   </button>
@@ -691,94 +719,64 @@ function Settings() {
             </div>
           )}
 
+          {/* BACKUP & RESTORE TAB */}
           {activeTab === "backup" && (
             <div>
-              <h2 className="text-xl font-semibold mb-4">Backup & Restore</h2>
+              <div className="mb-6 pb-4 border-b border-gray-100">
+                <h2 className="text-lg font-extrabold text-gray-900">Backup & Restore</h2>
+                <p className="text-xs text-gray-500 mt-1">Export data to JSON files or import from previously exported backups</p>
+              </div>
               <div className="space-y-6">
-                <div className="p-4 border border-gray-200 rounded-md">
-                  <h3 className="text-lg font-medium mb-2">Export Data</h3>
-                  <p className="text-sm text-gray-600 mb-3">
-                    Export your data to JSON files that can be imported later.
-                  </p>
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      onClick={() => exportData("products")}
-                      className="bg-blue-100 hover:bg-blue-200 text-blue-800 py-2 px-4 rounded-md"
-                    >
-                      Export Products
-                    </button>
-                    <button
-                      onClick={() => exportData("clients")}
-                      className="bg-blue-100 hover:bg-blue-200 text-blue-800 py-2 px-4 rounded-md"
-                    >
-                      Export Clients
-                    </button>
-                    <button
-                      onClick={() => exportData("bills")}
-                      className="bg-blue-100 hover:bg-blue-200 text-blue-800 py-2 px-4 rounded-md"
-                    >
-                      Export Bills
-                    </button>
-                    <button
-                      onClick={() => exportData("fieldOfficers")}
-                      className="bg-blue-100 hover:bg-blue-200 text-blue-800 py-2 px-4 rounded-md"
-                    >
-                      Export Field Officers
-                    </button>
-                    <button
-                      onClick={() => exportData("salesmen")}
-                      className="bg-blue-100 hover:bg-blue-200 text-blue-800 py-2 px-4 rounded-md"
-                    >
-                      Export Salesmen
-                    </button>
+                <div className="p-5 bg-blue-50 border border-blue-200 rounded-2xl">
+                  <h3 className="text-sm font-extrabold text-blue-900 mb-1">Export Data</h3>
+                  <p className="text-xs text-blue-700 mb-4">Download your data as JSON files that can be imported later.</p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { key: "products", label: "Export Products" },
+                      { key: "clients", label: "Export Clients" },
+                      { key: "bills", label: "Export Bills" },
+                      { key: "fieldOfficers", label: "Export Field Officers" },
+                      { key: "salesmen", label: "Export Salesmen" },
+                    ].map((item) => (
+                      <button
+                        key={item.key}
+                        onClick={() => exportData(item.key)}
+                        className="bg-blue-100 hover:bg-blue-200 text-blue-900 font-bold py-2 px-4 rounded-xl text-xs border border-blue-300 transition-colors"
+                      >
+                        {item.label}
+                      </button>
+                    ))}
                     <button
                       onClick={() => exportData("all")}
-                      className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md"
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-xl text-xs shadow-md transition-all"
                     >
                       Export All Data
                     </button>
                   </div>
                 </div>
 
-                <div className="p-4 border border-gray-200 rounded-md">
-                  <h3 className="text-lg font-medium mb-2">Import Data</h3>
-                  <p className="text-sm text-gray-600 mb-3">
-                    Import data from previously exported JSON files. This will replace your current data.
-                  </p>
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      onClick={() => importData("products")}
-                      className="bg-green-100 hover:bg-green-200 text-green-800 py-2 px-4 rounded-md"
-                    >
-                      Import Products
-                    </button>
-                    <button
-                      onClick={() => importData("clients")}
-                      className="bg-green-100 hover:bg-green-200 text-green-800 py-2 px-4 rounded-md"
-                    >
-                      Import Clients
-                    </button>
-                    <button
-                      onClick={() => importData("bills")}
-                      className="bg-green-100 hover:bg-green-200 text-green-800 py-2 px-4 rounded-md"
-                    >
-                      Import Bills
-                    </button>
-                    <button
-                      onClick={() => importData("fieldOfficers")}
-                      className="bg-green-100 hover:bg-green-200 text-green-800 py-2 px-4 rounded-md"
-                    >
-                      Import Field Officers
-                    </button>
-                    <button
-                      onClick={() => importData("salesmen")}
-                      className="bg-green-100 hover:bg-green-200 text-green-800 py-2 px-4 rounded-md"
-                    >
-                      Import Salesmen
-                    </button>
+                <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-2xl">
+                  <h3 className="text-sm font-extrabold text-emerald-900 mb-1">Import Data</h3>
+                  <p className="text-xs text-emerald-700 mb-4">Import from previously exported JSON files. This will replace your current data.</p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { key: "products", label: "Import Products" },
+                      { key: "clients", label: "Import Clients" },
+                      { key: "bills", label: "Import Bills" },
+                      { key: "fieldOfficers", label: "Import Field Officers" },
+                      { key: "salesmen", label: "Import Salesmen" },
+                    ].map((item) => (
+                      <button
+                        key={item.key}
+                        onClick={() => importData(item.key)}
+                        className="bg-emerald-100 hover:bg-emerald-200 text-emerald-900 font-bold py-2 px-4 rounded-xl text-xs border border-emerald-300 transition-colors"
+                      >
+                        {item.label}
+                      </button>
+                    ))}
                     <button
                       onClick={() => importData("all")}
-                      className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-md"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-xl text-xs shadow-md transition-all"
                     >
                       Import All Data
                     </button>
@@ -787,12 +785,17 @@ function Settings() {
               </div>
             </div>
           )}
+
+          {/* APPLICATION TAB */}
           {activeTab === "application" && (
-            <div>
-              <h2 className="text-xl font-semibold mb-4">Application Settings</h2>
-              <form onSubmit={saveAppConfig} className="space-y-4 max-w-md">
+            <div className="max-w-lg">
+              <div className="mb-6 pb-4 border-b border-gray-100">
+                <h2 className="text-lg font-extrabold text-gray-900">Application Settings</h2>
+                <p className="text-xs text-gray-500 mt-1">Configure locale, timezone, and regional formatting preferences</p>
+              </div>
+              <form onSubmit={saveAppConfig} className="space-y-5">
                 <div>
-                  <label htmlFor="locale" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="locale" className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
                     Date & Time Locale
                   </label>
                   <select
@@ -800,19 +803,19 @@ function Settings() {
                     name="locale"
                     value={appConfig.locale}
                     onChange={handleAppConfigChange}
-                    className="w-full p-2 border border-gray-300 rounded-md"
+                    className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="en-GB">British English (DD/MM/YYYY)</option>
                     <option value="en-US">US English (MM/DD/YYYY)</option>
                     <option value="en-PK">Pakistan English (DD/MM/YYYY)</option>
                     <option value="ur-PK">Urdu (Pakistan)</option>
                   </select>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Determines the format of dates (e.g., 21/01/2026 vs 01/21/2026).
+                  <p className="mt-1.5 text-xs text-gray-500">
+                    Determines the format of dates displayed throughout the application.
                   </p>
                 </div>
                 <div>
-                  <label htmlFor="timezone" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="timezone" className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
                     Application Timezone
                   </label>
                   <select
@@ -820,7 +823,7 @@ function Settings() {
                     name="timezone"
                     value={appConfig.timezone}
                     onChange={handleAppConfigChange}
-                    className="w-full p-2 border border-gray-300 rounded-md"
+                    className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500"
                   >
                     {(() => {
                       const localTz = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
@@ -847,58 +850,65 @@ function Settings() {
                       ));
                     })()}
                   </select>
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1.5 text-xs text-gray-500">
                     Fixes the application time regardless of your computer's local settings.
                   </p>
                 </div>
-                <div>
-                  <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md">
-                    Save Application Settings
-                  </button>
-                </div>
-                <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-                  <h4 className="text-sm font-bold text-yellow-800 mb-1">Preview</h4>
-                  <p className="text-sm text-yellow-700">
-                    Current date format: {new Date().toLocaleDateString(appConfig.locale, { timeZone: appConfig.timezone })}
+
+                <div className="p-4 bg-slate-50 rounded-xl border border-gray-200">
+                  <h4 className="text-xs font-extrabold text-gray-700 uppercase tracking-wider mb-2">Live Preview</h4>
+                  <p className="text-sm text-gray-700">
+                    Date: <strong>{new Date().toLocaleDateString(appConfig.locale, { timeZone: appConfig.timezone })}</strong>
                   </p>
-                  <p className="text-sm text-yellow-700">
-                    Current time format: {new Date().toLocaleTimeString(appConfig.locale, { timeZone: appConfig.timezone })}
+                  <p className="text-sm text-gray-700 mt-1">
+                    Time: <strong>{new Date().toLocaleTimeString(appConfig.locale, { timeZone: appConfig.timezone })}</strong>
                   </p>
                 </div>
+
+                <button
+                  type="submit"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-md transition-all text-sm"
+                >
+                  Save Application Settings
+                </button>
               </form>
             </div>
           )}
 
+          {/* UPDATES TAB */}
           {activeTab === "updates" && (
-            <div>
-              <h2 className="text-xl font-semibold mb-4">Application Updates</h2>
-              <div className="space-y-4 max-w-2xl">
-                <div className="p-4 border border-gray-200 rounded-md bg-gray-50">
-                  <p className="text-sm text-gray-600">
-                    The app will check GitHub Releases automatically for newer versions and prompt you to install them.
+            <div className="max-w-2xl">
+              <div className="mb-6 pb-4 border-b border-gray-100">
+                <h2 className="text-lg font-extrabold text-gray-900">Application Updates</h2>
+                <p className="text-xs text-gray-500 mt-1">Check for and install the latest application updates</p>
+              </div>
+              <div className="space-y-4">
+                <div className="p-5 bg-slate-50 border border-slate-200 rounded-2xl">
+                  <p className="text-sm text-gray-600 mb-4">
+                    The application automatically checks GitHub Releases for newer versions and prompts you to install them. You can also check manually below.
                   </p>
-                  <div className="mt-3 flex flex-wrap gap-3">
+                  <div className="flex flex-wrap gap-3">
                     <button
                       type="button"
                       onClick={handleCheckForUpdates}
                       disabled={isCheckingUpdates}
-                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white py-2 px-4 rounded-md"
+                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-bold py-2.5 px-5 rounded-xl text-sm shadow-md transition-all"
                     >
                       {isCheckingUpdates ? "Checking..." : "Check for Updates"}
                     </button>
                     <button
                       type="button"
                       onClick={handleInstallPendingUpdate}
-                      className="bg-purple-600 hover:bg-purple-700 text-white py-2 px-4 rounded-md"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-5 rounded-xl text-sm shadow-md transition-all"
                     >
-                      Install Update
+                      Install Pending Update
                     </button>
                   </div>
                 </div>
 
-                <div className="p-4 border border-gray-200 rounded-md">
-                  <h3 className="text-lg font-medium mb-2">Current Status</h3>
-                  <p className="text-sm text-gray-700">{updateStatus}</p>
+                <div className="p-5 bg-white border border-gray-200 rounded-2xl">
+                  <h3 className="text-sm font-extrabold text-gray-900 mb-2">Current Status</h3>
+                  <p className="text-sm text-gray-600 font-medium">{updateStatus}</p>
                 </div>
               </div>
             </div>

@@ -3,17 +3,20 @@
 import { useState, useEffect, useRef } from "react"
 import toast from "react-hot-toast"
 
+const emptySalesman = {
+  name: "",
+  phoneNumber: "",
+}
+
 function SalesmanManagement() {
   const [salesmen, setSalesmen] = useState([])
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [currentSalesman, setCurrentSalesman] = useState({
-    name: "",
-    phoneNumber: "",
-  })
+  const [currentSalesman, setCurrentSalesman] = useState(emptySalesman)
   const [isEditing, setIsEditing] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
 
-  // Add ref for auto-focus
   const nameInputRef = useRef(null)
   const searchInputRef = useRef(null)
   const formRef = useRef(null)
@@ -21,28 +24,21 @@ function SalesmanManagement() {
   useEffect(() => {
     fetchSalesmen()
 
-    // Auto-focus search input when component mounts
     if (searchInputRef.current) {
       searchInputRef.current.focus()
     }
   }, [])
 
-  // Add effect for modal auto-focus
   useEffect(() => {
     if (isModalOpen && nameInputRef.current) {
       nameInputRef.current.focus()
     }
   }, [isModalOpen])
 
-  // Add a keyboard shortcut for Cmd/Ctrl + A to trigger the add functionality
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Check for Cmd+A (Mac) or Ctrl+A (Windows/Linux)
       if ((e.metaKey || e.ctrlKey) && (e.key === "a" || e.key === "A")) {
-        // Prevent the default behavior (select all text)
         e.preventDefault()
-
-        // Only trigger if not in a text input or textarea
         if (document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") {
           setCurrentSalesman({
             name: "",
@@ -53,17 +49,17 @@ function SalesmanManagement() {
         }
       }
 
-      // Add keyboard shortcuts for modal when it's open
       if (isModalOpen) {
-        // Cmd/Ctrl + S to submit form
         if ((e.metaKey || e.ctrlKey) && (e.key === "s" || e.key === "S")) {
           e.preventDefault()
           if (formRef.current) {
-            formRef.current.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }))
+            if (typeof formRef.current.requestSubmit === "function") {
+              formRef.current.requestSubmit()
+            } else {
+              formRef.current.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }))
+            }
           }
-        }
-        // Cmd/Ctrl + C to close modal
-        else if ((e.metaKey || e.ctrlKey) && (e.key === "c" || e.key === "C")) {
+        } else if ((e.metaKey || e.ctrlKey) && (e.key === "c" || e.key === "C")) {
           e.preventDefault()
           setIsModalOpen(false)
         }
@@ -112,10 +108,7 @@ function SalesmanManagement() {
       }
 
       setIsModalOpen(false)
-      setCurrentSalesman({
-        name: "",
-        phoneNumber: "",
-      })
+      setCurrentSalesman(emptySalesman)
       setIsEditing(false)
       fetchSalesmen()
     } catch (error) {
@@ -130,16 +123,22 @@ function SalesmanManagement() {
     setIsModalOpen(true)
   }
 
-  const handleDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this salesman?")) {
-      try {
-        await window.api.deleteSalesman(id)
-        toast.success("Salesman deleted successfully")
-        fetchSalesmen()
-      } catch (error) {
-        console.error("Error deleting salesman:", error)
-        toast.error("Failed to delete salesman")
-      }
+  const handleDelete = (id) => {
+    setConfirmDeleteId(id)
+  }
+
+  const performDelete = async (id) => {
+    setDeletingId(id)
+    try {
+      await window.api.deleteSalesman(id)
+      toast.success("Salesman deleted successfully")
+      await fetchSalesmen()
+    } catch (error) {
+      console.error("Error deleting salesman:", error)
+      toast.error("Failed to delete salesman")
+    } finally {
+      setDeletingId(null)
+      setConfirmDeleteId(null)
     }
   }
 
@@ -149,96 +148,161 @@ function SalesmanManagement() {
   )
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Salesman Management</h1>
+    <div className="max-w-7xl mx-auto pb-12 px-2 sm:px-4">
+      {/* Top Header Card */}
+      <div className="mb-6 bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-900 rounded-2xl shadow-xl p-6 text-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-white/10 backdrop-blur-md rounded-xl border border-white/10">
+            <svg className="w-7 h-7 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">Salesman Management</h1>
+            <p className="text-blue-200 text-sm mt-0.5">Manage salesmen representatives and contact info</p>
+          </div>
+        </div>
         <button
           onClick={() => {
-            setCurrentSalesman({
-              name: "",
-              phoneNumber: "",
-            })
+            setCurrentSalesman(emptySalesman)
             setIsEditing(false)
             setIsModalOpen(true)
           }}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
+          className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-5 py-2.5 rounded-xl shadow-lg transition-all transform hover:-translate-y-0.5"
         >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+          </svg>
           Add New Salesman
         </button>
       </div>
 
-      <div className="mb-4">
-        <input
-          type="text"
-          placeholder="Search salesmen by name or phone number..."
-          className="w-full p-2 border border-gray-300 rounded-md"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          ref={searchInputRef}
-        />
+      {/* Search Bar Card */}
+      <div className="bg-white rounded-2xl shadow-md border border-slate-200/80 p-4 mb-6">
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Search salesmen by name or phone number..."
+            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 text-sm font-medium transition-all"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            ref={searchInputRef}
+          />
+          <svg className="w-4 h-4 text-gray-400 absolute left-3.5 top-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Phone Number
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {filteredSalesmen.length > 0 ? (
-              filteredSalesmen.map((salesman) => (
-                <tr key={salesman._id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{salesman.name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{salesman.phoneNumber}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button onClick={() => handleEdit(salesman)} className="text-blue-600 hover:text-blue-900 mr-4">
-                      Edit
-                    </button>
-                    <button onClick={() => handleDelete(salesman._id)} className="text-red-600 hover:text-red-900">
-                      Delete
-                    </button>
+      {/* Salesmen Table Card */}
+      <div className="bg-white rounded-2xl shadow-md border border-slate-200/80 overflow-hidden">
+        <div className="p-4 bg-slate-50 border-b border-gray-200 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <h3 className="font-bold text-gray-800 text-sm">Registered Salesmen</h3>
+            <span className="px-2.5 py-0.5 bg-blue-100 text-blue-800 text-xs font-bold rounded-full">
+              {filteredSalesmen.length} records
+            </span>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Salesman Name</th>
+                <th className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Phone Number</th>
+                <th className="px-6 py-3.5 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredSalesmen.length > 0 ? (
+                filteredSalesmen.map((salesman) => (
+                  <tr key={salesman._id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">{salesman.name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-medium">📞 {salesman.phoneNumber}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
+                      <div className="flex justify-end items-center gap-2">
+                        <button
+                          onClick={() => handleEdit(salesman)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl text-xs font-bold transition-colors"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          Edit
+                        </button>
+
+                        {confirmDeleteId === salesman._id ? (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => performDelete(salesman._id)}
+                              disabled={deletingId === salesman._id}
+                              className="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1 rounded-xl text-xs font-bold shadow-sm"
+                            >
+                              {deletingId === salesman._id ? "Deleting..." : "Confirm"}
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(null)}
+                              disabled={!!deletingId}
+                              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded-xl text-xs font-bold"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleDelete(salesman._id)}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl text-xs font-bold transition-colors"
+                            disabled={!!deletingId}
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="3" className="px-6 py-12 text-center text-sm text-gray-500">
+                    {searchTerm
+                      ? "No salesmen found matching your search."
+                      : "No salesmen available. Add your first salesman!"}
                   </td>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="3" className="px-6 py-4 text-center text-sm text-gray-500">
-                  {searchTerm
-                    ? "No salesmen found matching your search."
-                    : "No salesmen available. Add your first salesman!"}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Modal for adding/editing salesmen */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">{isEditing ? "Edit Salesman" : "Add New Salesman"}</h2>
-              <div className="text-sm text-gray-500">
-                <span className="mr-2">
-                  <kbd className="px-1 py-0.5 bg-gray-100 border border-gray-300 rounded">Ctrl+S</kbd> Save
-                </span>
-                <span>
-                  <kbd className="px-1 py-0.5 bg-gray-100 border border-gray-300 rounded">Ctrl+C</kbd> Cancel
-                </span>
-              </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100 transform transition-all">
+            <div className="p-5 bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 text-white flex justify-between items-center">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <svg className="w-5 h-5 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                {isEditing ? "Edit Salesman" : "Add Salesman"}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="text-gray-400 hover:text-white p-1 rounded-lg transition-colors"
+              >
+                ✕
+              </button>
             </div>
-            <form onSubmit={handleSubmit} ref={formRef}>
-              <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="name">
-                  Name *
+
+            <form onSubmit={handleSubmit} ref={formRef} className="p-6 space-y-4">
+              <div>
+                <label className="block text-gray-700 text-xs font-bold uppercase tracking-wider mb-1.5" htmlFor="name">
+                  Salesman Name *
                 </label>
                 <input
                   type="text"
@@ -246,13 +310,14 @@ function SalesmanManagement() {
                   name="name"
                   value={currentSalesman.name}
                   onChange={handleInputChange}
-                  className="w-full p-2 border border-gray-300 rounded-md"
+                  className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500"
                   required
                   ref={nameInputRef}
                 />
               </div>
-              <div className="mb-4">
-                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="phoneNumber">
+
+              <div>
+                <label className="block text-gray-700 text-xs font-bold uppercase tracking-wider mb-1.5" htmlFor="phoneNumber">
                   Phone Number *
                 </label>
                 <input
@@ -261,20 +326,24 @@ function SalesmanManagement() {
                   name="phoneNumber"
                   value={currentSalesman.phoneNumber}
                   onChange={handleInputChange}
-                  className="w-full p-2 border border-gray-300 rounded-md"
+                  className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl text-sm font-medium focus:ring-2 focus:ring-blue-500"
                   required
                 />
               </div>
-              <div className="flex justify-end">
+
+              <div className="pt-4 border-t border-gray-100 flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-md mr-2"
+                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-4 py-2 rounded-xl text-xs"
                 >
                   Cancel
                 </button>
-                <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md">
-                  {isEditing ? "Update" : "Add"}
+                <button
+                  type="submit"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2 rounded-xl text-xs shadow-md"
+                >
+                  {isEditing ? "Update Salesman" : "Add Salesman"}
                 </button>
               </div>
             </form>

@@ -8,6 +8,7 @@ const SearchBar = ({
   displayProperty,
   onSelect,
   className = "",
+  inputClassName = "w-full p-2 border border-gray-300 rounded-md",
   initialValue = "",
   searchTerm,
   setSearchTerm,
@@ -54,7 +55,7 @@ const SearchBar = ({
     } else {
       setInternalSearchTerm(value)
     }
-    setShowDropdown(true)
+    setShowDropdown(value.trim() !== "")
     setSelectedIndex(-1)
   }
 
@@ -97,6 +98,12 @@ const SearchBar = ({
     }
   }
 
+  useEffect(() => {
+    if (!isExternalState) {
+      setInternalSearchTerm(initialValue)
+    }
+  }, [initialValue, isExternalState])
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -124,7 +131,7 @@ const SearchBar = ({
         onKeyDown={handleKeyDown}
         onFocus={() => setShowDropdown(currentSearchTerm.trim() !== "")}
         placeholder={placeholder}
-        className="w-full p-2 border border-gray-300 rounded-md"
+        className={inputClassName}
         autoComplete="off"
       />
 

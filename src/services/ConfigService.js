@@ -75,6 +75,20 @@ class ConfigService {
         }
     }
 
+    formatIsoDate(date) {
+        try {
+            const d = date instanceof Date ? date : new Date(date)
+            return new Intl.DateTimeFormat("en-CA", { timeZone: this.config.timezone }).format(d)
+        } catch (error) {
+            console.error("Error formatting ISO date:", error)
+            return ""
+        }
+    }
+
+    getTodayIsoDate() {
+        return this.formatIsoDate(new Date())
+    }
+
     formatDate(date, extraOptions = {}) {
         try {
             const d = date instanceof Date ? date : new Date(date)
