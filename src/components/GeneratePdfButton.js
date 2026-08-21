@@ -73,10 +73,10 @@ function GeneratePdfButton({ bill, className = "", showDiscountAsAmount = false,
   }
 
   const buttonClass =
-    "inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm hover:-translate-y-0.5 whitespace-nowrap"
+    "inline-flex min-w-[88px] items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm hover:-translate-y-0.5 whitespace-nowrap"
 
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
+    <div className={`flex items-center gap-2 rounded-full bg-slate-50 p-1 border border-slate-200 ${className}`}>
       <button
         onClick={generatePdf}
         className={`${buttonClass} bg-blue-600 text-white hover:bg-blue-700 border border-blue-600 hover:shadow-md`}
