@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Link } from "react-router-dom"
 import { useDashboardStats } from "../hooks/useLazyData"
 import { useLazyData } from "../hooks/useLazyData"
@@ -50,6 +50,25 @@ function Dashboard() {
       setLowStockThreshold(value)
     }
   }
+
+  const recentBills = useMemo(() => {
+    if (!stats?.recentBills?.length) return []
+
+    return [...stats.recentBills].sort((a, b) => {
+      const aInvoice = a.billId ? String(a.billId) : a._id || ""
+      const bInvoice = b.billId ? String(b.billId) : b._id || ""
+
+      if (!aInvoice && !bInvoice) return 0
+      if (!aInvoice) return 1
+      if (!bInvoice) return -1
+
+      if (!isNaN(aInvoice) && !isNaN(bInvoice)) {
+        return Number(bInvoice) - Number(aInvoice)
+      }
+
+      return bInvoice.localeCompare(aInvoice, undefined, { numeric: true, sensitivity: "base" })
+    })
+  }, [stats?.recentBills])
 
   if (error) {
     return (
@@ -242,57 +261,59 @@ function Dashboard() {
           </Link>
         </div>
 
-        {stats.recentBills.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Invoice No.
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Party Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total Amount
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {stats.recentBills.map((bill) => (
-                  <tr key={bill._id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      #{bill._id.substring(0, 8)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{bill.clientName}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {configService.formatDate(bill.billDate)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      PKR {bill.totalAmount.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <Link
-                        to={`/bill/${bill._id}`}
-                        className="text-blue-600 hover:text-blue-900"
-                        onClick={() => {
-                          storageService.setLocalItem("billSourcePage", "dashboard")
-                        }}
-                      >
-                        View
-                      </Link>
-                    </td>
+        {recentBills.length > 0 ? (
+          <>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Invoice No.
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Party Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Total Amount
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {recentBills.map((bill) => (
+                    <tr key={bill._id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        #{bill.billId ? bill.billId : bill._id.substring(0, 8)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{bill.clientName}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {configService.formatDate(bill.billDate)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        PKR {bill.totalAmount.toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <Link
+                          to={`/bill/${bill._id}`}
+                          className="text-blue-600 hover:text-blue-900"
+                          onClick={() => {
+                            storageService.setLocalItem("billSourcePage", "dashboard")
+                          }}
+                        >
+                          View
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         ) : (
           <p className="text-gray-500">No bills generated yet.</p>
         )}

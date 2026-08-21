@@ -30,19 +30,17 @@ function Settings() {
   const [isCheckingUpdates, setIsCheckingUpdates] = useState(false)
 
   useEffect(() => {
-    // Check if user is already authenticated in this session
-    const sessionAuth = storageService.getSessionItem("isAuthenticated")
-    if (sessionAuth === "true") {
-      setIsAuthenticated(true)
+    const initialize = async () => {
+      const sessionAuth = storageService.getSessionItem("isAuthenticated")
+      if (sessionAuth === "true") {
+        setIsAuthenticated(true)
+      }
+
+      await Promise.all([fetchCompanyInfo(), fetchAppConfig()])
+      setIsLoading(false)
     }
 
-    // Fetch company info
-    fetchCompanyInfo()
-
-    // Fetch app config
-    fetchAppConfig()
-
-    setIsLoading(false)
+    initialize()
   }, [])
 
   const fetchCompanyInfo = async () => {

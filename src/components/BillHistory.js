@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { Link } from "react-router-dom"
 import toast from "react-hot-toast"
 import configService from "../services/ConfigService"
@@ -20,9 +20,15 @@ function BillHistory() {
     total,
   } = useLazyData("bills", "", 50)
 
-  const [searchTerm, setSearchTerm] = useState("")
-  const [dateFilter, setDateFilter] = useState({ from: "", to: "" })
+  const [searchTerm, setSearchTerm] = useState(() => storageService.getLocalItem("billHistorySearchTerm") || "")
+  const [dateFilter, setDateFilter] = useState(() => ({
+    from: storageService.getLocalItem("billHistoryDateFrom") || "",
+    to: storageService.getLocalItem("billHistoryDateTo") || "",
+  }))
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
   const searchInputRef = useRef(null)
+  const normalizedSearchTerm = searchTerm.trim().toLowerCase()
 
   useEffect(() => {
     searchBills(searchTerm)
@@ -35,57 +41,93 @@ function BillHistory() {
   }, [])
 
   const handleSearch = (e) => {
-    setSearchTerm(e.target.value)
+    const value = e.target.value
+    setSearchTerm(value)
+    storageService.setLocalItem("billHistorySearchTerm", value)
   }
 
   const handleDateFilterChange = (e) => {
     const { name, value } = e.target
-    setDateFilter((prev) => ({ ...prev, [name]: value }))
+    setDateFilter((prev) => {
+      const nextFilter = { ...prev, [name]: value }
+      storageService.setLocalItem(`billHistoryDate${name.charAt(0).toUpperCase() + name.slice(1)}`, value)
+      return nextFilter
+    })
   }
 
-  const handleDeleteBill = async (billId) => {
-    if (!window.confirm("Are you sure you want to delete this bill? This action cannot be undone and will restore product quantities.")) {
-      return
-    }
+  const handleDeleteBill = (billId) => {
+    // Trigger inline confirmation for this bill
+    setConfirmDeleteId(billId)
+  }
 
+  const performDeleteBill = async (billId) => {
+    setDeletingId(billId)
     try {
       await window.api.deleteBill(billId)
       toast.success("Bill deleted successfully")
       dataService.invalidateCacheOnModification("bills")
-      refreshBills()
+      await refreshBills()
     } catch (error) {
       console.error("Error deleting bill:", error)
       toast.error("Failed to delete bill")
+    } finally {
+      setDeletingId(null)
+      setConfirmDeleteId(null)
     }
   }
 
-  const filteredBills = bills.filter((bill) => {
-    const clientName = bill.clientName || ""
-    const billId = bill.billId ? String(bill.billId) : bill._id || ""
-    const matchesSearch =
-      clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      billId.toLowerCase().includes(searchTerm.toLowerCase())
-
-    const billDateStr = bill.billDate ? new Date(bill.billDate).toISOString().split("T")[0] : ""
-    let matchesDateRange = true
-    if (dateFilter.from) {
-      matchesDateRange = matchesDateRange && billDateStr >= dateFilter.from
-    }
-    if (dateFilter.to) {
-      matchesDateRange = matchesDateRange && billDateStr <= dateFilter.to
-    }
-
-    return matchesSearch && matchesDateRange
-  })
-
-  const calculateGrandTotal = () => {
-    return filteredBills.reduce((total, bill) => total + Number(bill.totalAmount || 0), 0)
+  const handleViewBill = () => {
+    storageService.setLocalItem("billSourcePage", "bills")
+    storageService.setLocalItem("billHistorySearchTerm", searchTerm)
+    storageService.setLocalItem("billHistoryDateFrom", dateFilter.from)
+    storageService.setLocalItem("billHistoryDateTo", dateFilter.to)
   }
+
+  const filteredBills = useMemo(() => {
+    const matched = bills.filter((bill) => {
+      const clientName = bill.clientName || ""
+      const billId = bill.billId ? String(bill.billId) : bill._id || ""
+      const matchesSearch =
+        clientName.toLowerCase().includes(normalizedSearchTerm) ||
+        billId.toLowerCase().includes(normalizedSearchTerm)
+
+      const billDateStr = bill.billDate ? configService.formatIsoDate(bill.billDate) : ""
+      let matchesDateRange = true
+      if (dateFilter.from) {
+        matchesDateRange = matchesDateRange && billDateStr >= dateFilter.from
+      }
+      if (dateFilter.to) {
+        matchesDateRange = matchesDateRange && billDateStr <= dateFilter.to
+      }
+
+      return matchesSearch && matchesDateRange
+    })
+
+    return matched.sort((a, b) => {
+      const aInvoice = a.billId ? String(a.billId) : a._id || ""
+      const bInvoice = b.billId ? String(b.billId) : b._id || ""
+
+      if (!aInvoice && !bInvoice) return 0
+      if (!aInvoice) return 1
+      if (!bInvoice) return -1
+
+      if (!isNaN(aInvoice) && !isNaN(bInvoice)) {
+        return Number(bInvoice) - Number(aInvoice)
+      }
+
+      return bInvoice.localeCompare(aInvoice, undefined, { numeric: true, sensitivity: "base" })
+    })
+  }, [bills, normalizedSearchTerm, dateFilter])
+
+  const grandTotal = useMemo(
+    () => filteredBills.reduce((total, bill) => total + Number(bill.totalAmount || 0), 0),
+    [filteredBills],
+  )
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Bill History: ({bills.length} of {total})</h1>
+        <h1 className="text-3xl font-bold">Bill History: ({filteredBills.length} shown of {total})</h1>
       </div>
 
       <div className="bg-white rounded-lg shadow p-6 mb-6">
@@ -183,19 +225,37 @@ function BillHistory() {
                     <div className="flex space-x-2">
                       <Link
                         to={`/bill/${bill._id}`}
-                        className="text-blue-600 hover:text-blue-900"
-                        onClick={() => {
-                          storageService.setLocalItem("billSourcePage", "bills")
-                        }}
+                        className={`text-blue-600 hover:text-blue-900 ${deletingId ? 'opacity-50 pointer-events-none' : ''}`}
+                        onClick={handleViewBill}
                       >
                         View
                       </Link>
-                      <button
-                        onClick={() => handleDeleteBill(bill._id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Delete
-                      </button>
+                      {confirmDeleteId === bill._id ? (
+                        <>
+                          <button
+                            onClick={() => performDeleteBill(bill._id)}
+                            disabled={deletingId === bill._id}
+                            className="bg-red-600 text-white px-2 py-1 rounded-md"
+                          >
+                            {deletingId === bill._id ? "Deleting..." : "Confirm Delete"}
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteId(null)}
+                            disabled={!!deletingId}
+                            className="border border-gray-300 px-2 py-1 rounded-md"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => handleDeleteBill(bill._id)}
+                          className="text-red-600 hover:text-red-900"
+                          disabled={!!deletingId}
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -213,7 +273,7 @@ function BillHistory() {
         </table>
         {filteredBills.length > 0 && (
           <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end">
-            <div className="text-lg font-bold">Grand Total: PKR {calculateGrandTotal().toFixed(2)}</div>
+            <div className="text-lg font-bold">Grand Total: PKR {grandTotal.toFixed(2)}</div>
           </div>
         )}
       </div>

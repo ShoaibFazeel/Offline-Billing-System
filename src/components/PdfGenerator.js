@@ -6,10 +6,7 @@ import configService from "../services/ConfigService"
  * Refactored to improve maintainability and alignment of numeric columns.
  */
 class PdfGenerator {
-  constructor(bill, companyInfo) {
-    this.bill = bill
-    this.companyInfo = companyInfo
-    this.doc = null
+  constructor() {
     this.pageWidth = 410 // 15cm in points
     this.pageHeight = 595.3 // 21cm in points
     this.margin = 15 // reduce margin for smaller page
@@ -83,7 +80,7 @@ class PdfGenerator {
         }
 
         // Draw Row Content
-        page.drawText(String(idx + 1), { x: col[0], y, size: 10, font })
+        page.drawText(String(idx + 1), { x: col[0], y, size: 10, font: boldItalic })
 
         let y2 = this.drawWrappedText(page, item.productName.trim(), col[1], y, descColWidth, boldItalic, 8, this.colors.black)
         if (product.companyName || product.containerSize) {

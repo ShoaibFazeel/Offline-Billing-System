@@ -3,15 +3,19 @@
 import { useState, useEffect, useRef } from "react"
 import toast from "react-hot-toast"
 
+const emptySalesman = {
+  name: "",
+  phoneNumber: "",
+}
+
 function SalesmanManagement() {
   const [salesmen, setSalesmen] = useState([])
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [currentSalesman, setCurrentSalesman] = useState({
-    name: "",
-    phoneNumber: "",
-  })
+  const [currentSalesman, setCurrentSalesman] = useState(emptySalesman)
   const [isEditing, setIsEditing] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
 
   // Add ref for auto-focus
   const nameInputRef = useRef(null)
@@ -59,7 +63,11 @@ function SalesmanManagement() {
         if ((e.metaKey || e.ctrlKey) && (e.key === "s" || e.key === "S")) {
           e.preventDefault()
           if (formRef.current) {
-            formRef.current.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }))
+            if (typeof formRef.current.requestSubmit === "function") {
+              formRef.current.requestSubmit()
+            } else {
+              formRef.current.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }))
+            }
           }
         }
         // Cmd/Ctrl + C to close modal
@@ -112,10 +120,7 @@ function SalesmanManagement() {
       }
 
       setIsModalOpen(false)
-      setCurrentSalesman({
-        name: "",
-        phoneNumber: "",
-      })
+      setCurrentSalesman(emptySalesman)
       setIsEditing(false)
       fetchSalesmen()
     } catch (error) {
@@ -130,16 +135,22 @@ function SalesmanManagement() {
     setIsModalOpen(true)
   }
 
-  const handleDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this salesman?")) {
-      try {
-        await window.api.deleteSalesman(id)
-        toast.success("Salesman deleted successfully")
-        fetchSalesmen()
-      } catch (error) {
-        console.error("Error deleting salesman:", error)
-        toast.error("Failed to delete salesman")
-      }
+  const handleDelete = (id) => {
+    setConfirmDeleteId(id)
+  }
+
+  const performDelete = async (id) => {
+    setDeletingId(id)
+    try {
+      await window.api.deleteSalesman(id)
+      toast.success("Salesman deleted successfully")
+      await fetchSalesmen()
+    } catch (error) {
+      console.error("Error deleting salesman:", error)
+      toast.error("Failed to delete salesman")
+    } finally {
+      setDeletingId(null)
+      setConfirmDeleteId(null)
     }
   }
 
@@ -154,10 +165,7 @@ function SalesmanManagement() {
         <h1 className="text-3xl font-bold">Salesman Management</h1>
         <button
           onClick={() => {
-            setCurrentSalesman({
-              name: "",
-              phoneNumber: "",
-            })
+            setCurrentSalesman(emptySalesman)
             setIsEditing(false)
             setIsModalOpen(true)
           }}
@@ -198,12 +206,31 @@ function SalesmanManagement() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{salesman.name}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{salesman.phoneNumber}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button onClick={() => handleEdit(salesman)} className="text-blue-600 hover:text-blue-900 mr-4">
+                    <button onClick={() => handleEdit(salesman)} className={`text-blue-600 hover:text-blue-900 mr-4 ${deletingId ? 'opacity-50 pointer-events-none' : ''}`}>
                       Edit
                     </button>
-                    <button onClick={() => handleDelete(salesman._id)} className="text-red-600 hover:text-red-900">
-                      Delete
-                    </button>
+                    {confirmDeleteId === salesman._id ? (
+                      <>
+                        <button
+                          onClick={() => performDelete(salesman._id)}
+                          disabled={deletingId === salesman._id}
+                          className="bg-red-600 text-white px-2 py-1 rounded-md mr-2"
+                        >
+                          {deletingId === salesman._id ? 'Deleting...' : 'Confirm Delete'}
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteId(null)}
+                          disabled={!!deletingId}
+                          className="border border-gray-300 px-2 py-1 rounded-md"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button onClick={() => handleDelete(salesman._id)} className="text-red-600 hover:text-red-900" disabled={!!deletingId}>
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))

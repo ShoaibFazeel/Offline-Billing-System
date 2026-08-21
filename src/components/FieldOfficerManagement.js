@@ -1,17 +1,21 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import toast from "react-hot-toast"
+
+const emptyFieldOfficer = {
+  name: "",
+  phoneNumber: "",
+}
 
 function FieldOfficerManagement() {
   const [fieldOfficers, setFieldOfficers] = useState([])
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [currentFieldOfficer, setCurrentFieldOfficer] = useState({
-    name: "",
-    phoneNumber: "",
-  })
+  const [currentFieldOfficer, setCurrentFieldOfficer] = useState(emptyFieldOfficer)
   const [isEditing, setIsEditing] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
 
   // Add ref for auto-focus
   const nameInputRef = useRef(null)
@@ -33,6 +37,12 @@ function FieldOfficerManagement() {
       nameInputRef.current.focus()
     }
   }, [isModalOpen])
+
+  const openFieldOfficerModal = (fieldOfficer = emptyFieldOfficer, editing = false) => {
+    setCurrentFieldOfficer({ ...fieldOfficer })
+    setIsEditing(editing)
+    setIsModalOpen(true)
+  }
 
   // Add a keyboard shortcut for Cmd/Ctrl + A to trigger the add functionality
   // Add this after the existing useEffect hooks
@@ -61,7 +71,11 @@ function FieldOfficerManagement() {
         if ((e.metaKey || e.ctrlKey) && (e.key === "s" || e.key === "S")) {
           e.preventDefault()
           if (formRef.current) {
-            formRef.current.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }))
+            if (typeof formRef.current.requestSubmit === "function") {
+              formRef.current.requestSubmit()
+            } else {
+              formRef.current.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }))
+            }
           }
         }
         // Cmd/Ctrl + C to close modal
@@ -127,27 +141,37 @@ function FieldOfficerManagement() {
   }
 
   const handleEdit = (fieldOfficer) => {
-    setCurrentFieldOfficer(fieldOfficer)
-    setIsEditing(true)
-    setIsModalOpen(true)
+    openFieldOfficerModal(fieldOfficer, true)
   }
 
-  const handleDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this field officer?")) {
-      try {
-        await window.api.deleteFieldOfficer(id)
-        toast.success("Field officer deleted successfully")
-        fetchFieldOfficers()
-      } catch (error) {
-        console.error("Error deleting field officer:", error)
-        toast.error("Failed to delete field officer")
-      }
+  const handleDelete = (id) => {
+    setConfirmDeleteId(id)
+  }
+
+  const performDelete = async (id) => {
+    setDeletingId(id)
+    try {
+      await window.api.deleteFieldOfficer(id)
+      toast.success("Field officer deleted successfully")
+      await fetchFieldOfficers()
+    } catch (error) {
+      console.error("Error deleting field officer:", error)
+      toast.error("Failed to delete field officer")
+    } finally {
+      setDeletingId(null)
+      setConfirmDeleteId(null)
     }
   }
 
-  const filteredFieldOfficers = fieldOfficers.filter(
-    (officer) =>
-      officer.name.toLowerCase().includes(searchTerm.toLowerCase()) || officer.phoneNumber.includes(searchTerm),
+  const normalizedSearchTerm = searchTerm.trim().toLowerCase()
+  const filteredFieldOfficers = useMemo(
+    () =>
+      fieldOfficers.filter(
+        (officer) =>
+          officer.name.toLowerCase().includes(normalizedSearchTerm) ||
+          officer.phoneNumber.includes(normalizedSearchTerm),
+      ),
+    [fieldOfficers, normalizedSearchTerm],
   )
 
   return (
@@ -155,14 +179,7 @@ function FieldOfficerManagement() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Field Officer Management</h1>
         <button
-          onClick={() => {
-            setCurrentFieldOfficer({
-              name: "",
-              phoneNumber: "",
-            })
-            setIsEditing(false)
-            setIsModalOpen(true)
-          }}
+          onClick={() => openFieldOfficerModal()}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
         >
           Add New Field Officer
@@ -200,12 +217,31 @@ function FieldOfficerManagement() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{officer.name}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{officer.phoneNumber}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button onClick={() => handleEdit(officer)} className="text-blue-600 hover:text-blue-900 mr-4">
+                    <button onClick={() => handleEdit(officer)} className={`text-blue-600 hover:text-blue-900 mr-4 ${deletingId ? 'opacity-50 pointer-events-none' : ''}`}>
                       Edit
                     </button>
-                    <button onClick={() => handleDelete(officer._id)} className="text-red-600 hover:text-red-900">
-                      Delete
-                    </button>
+                    {confirmDeleteId === officer._id ? (
+                      <>
+                        <button
+                          onClick={() => performDelete(officer._id)}
+                          disabled={deletingId === officer._id}
+                          className="bg-red-600 text-white px-2 py-1 rounded-md mr-2"
+                        >
+                          {deletingId === officer._id ? 'Deleting...' : 'Confirm Delete'}
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteId(null)}
+                          disabled={!!deletingId}
+                          className="border border-gray-300 px-2 py-1 rounded-md"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button onClick={() => handleDelete(officer._id)} className="text-red-600 hover:text-red-900" disabled={!!deletingId}>
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))

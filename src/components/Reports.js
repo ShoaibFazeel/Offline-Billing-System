@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import toast from "react-hot-toast"
 import GeneratePdfButton from "./GeneratePdfButton"
 import SearchBar from "./SearchBar"
@@ -8,13 +8,11 @@ import configService from "../services/ConfigService"
 
 function Reports() {
   const getDefaultDateFilter = () => {
-    const today = new Date()
-    const from = new Date(today)
-    from.setMonth(today.getMonth() - 3)
+    const todayStr = configService.getTodayIsoDate()
 
     return {
-      from: from.toISOString().split("T")[0],
-      to: today.toISOString().split("T")[0],
+      from: todayStr,
+      to: todayStr,
     }
   }
 
@@ -36,6 +34,8 @@ function Reports() {
   const [reportType, setReportType] = useState("daily") // 'daily' or 'item'
   const [selectedProduct, setSelectedProduct] = useState("")
   const [selectedProductObj, setSelectedProductObj] = useState(null)
+  const [companies, setCompanies] = useState([])
+  const [companyFilter, setCompanyFilter] = useState("")
 
   useEffect(() => {
     fetchData()
@@ -167,6 +167,10 @@ function Reports() {
       }));
       setProducts(newProductData)
 
+      // Extract unique company names from products for company filter
+      const uniqueCompanies = [...new Set(newProductData.map(p => p.companyName).filter(Boolean))].sort()
+      setCompanies(uniqueCompanies)
+
       // Extract unique addresses from clients
       const uniqueAddresses = [...new Set(clientsData.map((client) => client.clientAddress))]
         .filter(Boolean) // Remove empty addresses
@@ -208,10 +212,16 @@ function Reports() {
     setSelectedProduct(product.productName)
   }
 
+  const handleCompanySelect = (companyItem) => {
+    const name = companyItem?.name || ""
+    setCompanyFilter(name)
+  }
+
   const handleResetFilters = async () => {
     setAddressFilter("")
     setSalesmanFilter("")
     setFieldOfficerFilter("")
+    setCompanyFilter("")
     const defaultDateFilter = getDefaultDateFilter()
     setDateFilter(defaultDateFilter)
     setSearchTerm("")
@@ -278,24 +288,17 @@ function Reports() {
     }, 0)
   }
 
-  // Calculate total profit for all filtered bills
-  const calculateTotalProfit = () => {
-    return filteredBills.reduce((totalProfit, bill) => {
-      return totalProfit + calculateBillProfit(bill)
-    }, 0)
-  }
-
   // Get Item Report Data - filter bills containing selected product
-  const getItemReportData = () => {
+  const itemReportData = useMemo(() => {
     if (!selectedProductObj) return []
 
-    const itemData = []
+    const data = []
 
     bills.forEach((bill) => {
       if (!bill || !bill.items || !Array.isArray(bill.items)) return
 
       // Filter by date range
-      const billDateStr = bill.billDate ? new Date(bill.billDate).toISOString().split("T")[0] : ""
+      const billDateStr = bill.billDate ? configService.formatIsoDate(bill.billDate) : ""
       let matchesDateRange = true
       if (dateFilter.from) {
         matchesDateRange = matchesDateRange && billDateStr >= dateFilter.from
@@ -306,21 +309,19 @@ function Reports() {
 
       const clientAddress = getClientAddress(bill.clientId) || ""
       const matchesAddress = !addressFilter || clientAddress.toLowerCase().includes(addressFilter.toLowerCase())
-      
       const matchesSalesman = !salesmanFilter || bill.salesmanId === salesmanFilter
       const matchesFieldOfficer = !fieldOfficerFilter || bill.fieldOfficerId === fieldOfficerFilter
-      
+
       const clientName = bill.clientName || getClientName(bill.clientId) || ""
       const billIdStr = bill.billId ? String(bill.billId) : (bill._id || "")
       const matchesSearch = !searchTerm || clientName.toLowerCase().includes(searchTerm.toLowerCase()) || billIdStr.toLowerCase().includes(searchTerm.toLowerCase())
 
       if (!matchesDateRange || !matchesAddress || !matchesSalesman || !matchesFieldOfficer || !matchesSearch) return
 
-      // Find items matching selected product
       bill.items.forEach((item) => {
         if (item.productId === selectedProductObj._id) {
           const client = getClient(bill.clientId)
-          itemData.push({
+          data.push({
             billId: bill.billId || bill._id,
             billDate: bill.billDate,
             clientName: bill.clientName || client?.clientName || "Unknown",
@@ -332,67 +333,66 @@ function Reports() {
       })
     })
 
-    return itemData
-  }
+    return data
+  }, [bills, selectedProductObj, dateFilter, addressFilter, salesmanFilter, fieldOfficerFilter, searchTerm, clients])
 
-  // Calculate totals for Item Report
-  const calculateItemTotals = () => {
-    const data = getItemReportData()
-    return {
-      totalQuantity: data.reduce((sum, item) => sum + item.quantity, 0),
-      totalAmount: data.reduce((sum, item) => sum + item.amount, 0),
-    }
-  }
+  const itemTotals = useMemo(() => ({
+    totalQuantity: itemReportData.reduce((sum, item) => sum + item.quantity, 0),
+    totalAmount: itemReportData.reduce((sum, item) => sum + item.amount, 0),
+  }), [itemReportData])
 
   // Filter bills based on client address, date range, and search term
-  const filteredBills = bills.filter((bill) => {
-    if (!bill || !bill.clientId) return false
+  const filteredBills = useMemo(() => {
+    return bills.filter((bill) => {
+      if (!bill || !bill.clientId) return false
 
-    // Get client address
-    const clientAddress = getClientAddress(bill.clientId) || ""
-    const clientName = bill.clientName || getClientName(bill.clientId) || ""
-    const billId = bill.billId ? String(bill.billId) : (bill._id || "")
+      const clientAddress = getClientAddress(bill.clientId) || ""
+      const clientName = bill.clientName || getClientName(bill.clientId) || ""
+      const billId = bill.billId ? String(bill.billId) : (bill._id || "")
 
-    // Filter by address
-    const matchesAddress = !addressFilter || clientAddress.toLowerCase().includes(addressFilter.toLowerCase())
+      const matchesAddress = !addressFilter || clientAddress.toLowerCase().includes(addressFilter.toLowerCase())
 
-    // Filter by date range
-    const billDateStr = bill.billDate ? new Date(bill.billDate).toISOString().split("T")[0] : ""
-    let matchesDateRange = true
-    if (dateFilter.from) {
-      matchesDateRange = matchesDateRange && billDateStr >= dateFilter.from
-    }
-    if (dateFilter.to) {
-      matchesDateRange = matchesDateRange && billDateStr <= dateFilter.to
-    }
+      const billDateStr = bill.billDate ? configService.formatIsoDate(bill.billDate) : ""
+      let matchesDateRange = true
+      if (dateFilter.from) {
+        matchesDateRange = matchesDateRange && billDateStr >= dateFilter.from
+      }
+      if (dateFilter.to) {
+        matchesDateRange = matchesDateRange && billDateStr <= dateFilter.to
+      }
 
-    // Filter by search term (client name or bill ID)
-    const matchesSearch =
-      !searchTerm ||
-      clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      billId.toLowerCase().includes(searchTerm.toLowerCase())
+      const matchesSearch =
+        !searchTerm ||
+        clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        billId.toLowerCase().includes(searchTerm.toLowerCase())
 
-    const matchesSalesman = !salesmanFilter || bill.salesmanId === salesmanFilter
-    const matchesFieldOfficer = !fieldOfficerFilter || bill.fieldOfficerId === fieldOfficerFilter
+      const matchesSalesman = !salesmanFilter || bill.salesmanId === salesmanFilter
+      const matchesFieldOfficer = !fieldOfficerFilter || bill.fieldOfficerId === fieldOfficerFilter
 
-    return matchesAddress && matchesDateRange && matchesSearch && matchesSalesman && matchesFieldOfficer
-  })
+      // Company filter: if selected, bill must contain at least one item whose product's company matches
+      let matchesCompany = true
+      if (companyFilter) {
+        const productIdsOfCompany = new Set(products.filter(p => p.companyName === companyFilter).map(p => p._id))
+        matchesCompany = Array.isArray(bill.items) && bill.items.some(item => productIdsOfCompany.has(item.productId))
+      }
+
+      return matchesAddress && matchesDateRange && matchesSearch && matchesSalesman && matchesFieldOfficer && matchesCompany
+    })
+  }, [bills, addressFilter, dateFilter, searchTerm, salesmanFilter, fieldOfficerFilter, clients, companyFilter, products])
 
   // Group bills by selected criteria
-  const groupedBills = () => {
+  const groupedBills = useMemo(() => {
     if (groupBy === "address") {
-      // Group by client address
       const groups = {}
 
       filteredBills.forEach((bill) => {
-        const address = getClientAddress(bill.clientId)
+        const address = getClientAddress(bill.clientId) || "Unknown Address"
         if (!groups[address]) {
           groups[address] = []
         }
         groups[address].push(bill)
       })
 
-      // Convert to array and sort by address
       return Object.entries(groups)
         .sort(([addressA], [addressB]) => addressA.localeCompare(addressB))
         .map(([address, bills]) => ({
@@ -402,11 +402,10 @@ function Reports() {
           totalProfit: bills.reduce((sum, bill) => sum + calculateBillProfit(bill), 0),
         }))
     } else if (groupBy === "client") {
-      // Group by client name
       const groups = {}
 
       filteredBills.forEach((bill) => {
-        const clientName = bill.clientName || getClientName(bill.clientId)
+        const clientName = bill.clientName || getClientName(bill.clientId) || "Unknown Client"
 
         if (!groups[clientName]) {
           groups[clientName] = []
@@ -414,7 +413,6 @@ function Reports() {
         groups[clientName].push(bill)
       })
 
-      // Convert to array and sort by client name
       return Object.entries(groups)
         .sort(([nameA], [nameB]) => nameA.localeCompare(nameB))
         .map(([clientName, bills]) => ({
@@ -424,11 +422,11 @@ function Reports() {
           totalProfit: bills.reduce((sum, bill) => sum + calculateBillProfit(bill), 0),
         }))
     } else if (groupBy === "date") {
-      // Group by month/year
       const groups = {}
 
       filteredBills.forEach((bill) => {
         const date = new Date(bill.billDate)
+        if (Number.isNaN(date.getTime())) return
         const monthYear = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`
 
         if (!groups[monthYear]) {
@@ -437,7 +435,6 @@ function Reports() {
         groups[monthYear].push(bill)
       })
 
-      // Convert to array and sort by date
       return Object.entries(groups)
         .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
         .map(([monthYear, bills]) => ({
@@ -449,11 +446,11 @@ function Reports() {
     }
 
     return []
-  }
+  }, [filteredBills, groupBy, clients])
 
-  const calculateGrandTotal = () => {
+  const calculateGrandTotal = useMemo(() => {
     return filteredBills.reduce((total, bill) => total + (bill.totalAmount || 0), 0)
-  }
+  }, [filteredBills])
 
   // Helper function to draw wrapped text
   const drawWrappedText = (page, text, x, y, maxWidth, font, fontSize, color, lineHeightMultiplier = 1.2) => {
@@ -594,7 +591,7 @@ function Reports() {
 
     y = drawTableHead(page, y)
 
-    const groups = groupedBills()
+    const groups = groupedBills
     let grandTotal = 0
 
     for (const group of groups) {
@@ -802,7 +799,7 @@ function Reports() {
 
     y = drawTableHead(page, y)
 
-    const itemData = getItemReportData()
+    const itemData = itemReportData
     let totalQuantity = 0
     let totalAmount = 0
 
@@ -866,8 +863,8 @@ function Reports() {
       const link = document.createElement("a")
       link.href = URL.createObjectURL(blob)
       const fileName = reportType === "item"
-        ? `ItemReport-${selectedProduct.replace(/\s+/g, "_")}-${new Date().toISOString().split("T")[0]}.pdf`
-        : `DailySaleReport-${new Date().toISOString().split("T")[0]}.pdf`
+        ? `ItemReport-${selectedProduct.replace(/\s+/g, "_")}-${configService.getTodayIsoDate()}.pdf`
+        : `DailySaleReport-${configService.getTodayIsoDate()}.pdf`
       link.download = fileName
       document.body.appendChild(link)
       link.click()
@@ -898,10 +895,25 @@ function Reports() {
       } else {
         const blobUrl = URL.createObjectURL(blob)
         const printWindow = window.open(blobUrl)
+
+        if (!printWindow) {
+          URL.revokeObjectURL(blobUrl)
+          toast.error("Popup blocked. Please allow popups to print.")
+          return
+        }
+
+        const cleanup = () => {
+          URL.revokeObjectURL(blobUrl)
+          printWindow.onbeforeunload = null
+          printWindow.onafterprint = null
+        }
+
         printWindow.onload = () => {
           printWindow.focus()
           printWindow.print()
         }
+        printWindow.onafterprint = cleanup
+        printWindow.onbeforeunload = cleanup
       }
     } catch (error) {
       toast.error("Failed to open report")
@@ -966,19 +978,34 @@ function Reports() {
 
         <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-${reportType === 'daily' ? '2' : '3'} gap-5 mb-5`}>
           {reportType === "daily" ? (
-            <div>
-              <label className="block text-slate-600 text-xs font-semibold mb-2 uppercase tracking-wide">Address Filter</label>
-              <SearchBar
-                placeholder="Filter by address..."
-                items={addresses}
-                displayProperty="clientAddress"
-                onSelect={handleAddressSelect}
-                initialValue={addressFilter}
-                searchTerm={addressFilter}
-                setSearchTerm={setAddressFilter}
-                className="w-full p-0.5 border border-gray-200 rounded-lg bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-purple-500/20 focus-within:border-purple-500 transition-all outline-none"
-              />
-            </div>
+            <>
+              <div>
+                <label className="block text-slate-600 text-xs font-semibold mb-2 uppercase tracking-wide">Address Filter</label>
+                <SearchBar
+                  placeholder="Filter by address..."
+                  items={addresses}
+                  displayProperty="clientAddress"
+                  onSelect={handleAddressSelect}
+                  initialValue={addressFilter}
+                  searchTerm={addressFilter}
+                  setSearchTerm={setAddressFilter}
+                  className="w-full p-0.5 border border-gray-200 rounded-lg bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-purple-500/20 focus-within:border-purple-500 transition-all outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-600 text-xs font-semibold mb-2 uppercase tracking-wide">Company Filter</label>
+                <SearchBar
+                  placeholder="Search company..."
+                  items={companies.map(c => ({ _id: c, name: c }))}
+                  displayProperty="name"
+                  onSelect={handleCompanySelect}
+                  initialValue={companyFilter}
+                  searchTerm={companyFilter}
+                  setSearchTerm={setCompanyFilter}
+                  className="w-full p-0.5"
+                />
+              </div>
+            </>
           ) : (
             <>
               <div>
@@ -992,6 +1019,19 @@ function Reports() {
                   searchTerm={selectedProduct}
                   setSearchTerm={setSelectedProduct}
                   className="w-full p-0.5 border border-gray-200 rounded-lg bg-gray-50 focus-within:bg-white focus-within:ring-2 focus-within:ring-purple-500/20 focus-within:border-purple-500 transition-all outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-600 text-xs font-semibold mb-2 uppercase tracking-wide">Company Filter</label>
+                <SearchBar
+                  placeholder="Search company..."
+                  items={companies.map(c => ({ _id: c, name: c }))}
+                  displayProperty="name"
+                  onSelect={handleCompanySelect}
+                  initialValue={companyFilter}
+                  searchTerm={companyFilter}
+                  setSearchTerm={setCompanyFilter}
+                  className="w-full p-0.5"
                 />
               </div>
               <div>
@@ -1142,9 +1182,9 @@ function Reports() {
       </div>
 
       {reportType === "daily" ? (
-        groupedBills().length > 0 ? (
+        groupedBills.length > 0 ? (
           <div className="space-y-8">
-            {groupedBills().map((group, groupIndex) => (
+            {groupedBills.map((group, groupIndex) => (
               <div key={groupIndex} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                 <div className="bg-gradient-to-r from-slate-50 to-white px-6 py-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
                   <div className="flex items-center">
@@ -1217,7 +1257,7 @@ function Reports() {
               <div className="text-right">
                 <div className="text-sm text-gray-500 font-bold uppercase tracking-wider mb-1">Grand Total</div>
                 <div className="text-3xl font-extrabold text-gray-900">
-                  PKR {calculateGrandTotal().toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
+                  PKR {calculateGrandTotal.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                 </div>
               </div>
             </div>
@@ -1237,7 +1277,7 @@ function Reports() {
         )
       ) : (
         // Item Report table rendering
-        getItemReportData().length > 0 ? (
+        itemReportData.length > 0 ? (
           <div className="space-y-8">
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="overflow-x-auto">
@@ -1253,7 +1293,7 @@ function Reports() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-100">
-                    {getItemReportData().map((item, idx) => (
+                    {itemReportData.map((item, idx) => (
                       <tr key={idx} className="hover:bg-slate-50 transition-colors duration-150">
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">#{item.billId}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{configService.formatDate(item.billDate)}</td>
@@ -1271,11 +1311,11 @@ function Reports() {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col sm:flex-row justify-between items-center gap-4">
               <div className="bg-purple-50 px-6 py-3 rounded-xl border border-purple-100 flex items-center w-full sm:w-auto">
                 <div className="text-sm text-purple-600 font-bold uppercase tracking-wider mr-4">Total Quantity</div>
-                <div className="text-2xl font-black text-purple-700">{calculateItemTotals().totalQuantity}</div>
+                <div className="text-2xl font-black text-purple-700">{itemTotals.totalQuantity}</div>
               </div>
               <div className="text-right w-full sm:w-auto">
                 <div className="text-sm text-gray-500 font-bold uppercase tracking-wider mb-1">Total Amount</div>
-                <div className="text-3xl font-extrabold text-gray-900">PKR {calculateItemTotals().totalAmount.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
+                <div className="text-3xl font-extrabold text-gray-900">PKR {itemTotals.totalAmount.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
               </div>
             </div>
           </div>

@@ -5,6 +5,14 @@ import toast from "react-hot-toast"
 import { useLazyData } from "../hooks/useLazyData"
 import dataService from "../services/DataService"
 
+const emptyClient = {
+  clientName: "",
+  clientNumber: "",
+  clientAddress: "",
+  isFiler: false,
+  ntnNumber: "",
+}
+
 function ClientManagement() {
   // Use lazy loading for clients
   const { 
@@ -19,15 +27,11 @@ function ClientManagement() {
   } = useLazyData('clients', '', 50)
   
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [currentClient, setCurrentClient] = useState({
-    clientName: "",
-    clientNumber: "",
-    clientAddress: "",
-    isFiler: false,
-    ntnNumber: "",
-  })
+  const [currentClient, setCurrentClient] = useState(emptyClient)
   const [isEditing, setIsEditing] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
 
   // Add ref for auto-focus
   const clientNameInputRef = useRef(null)
@@ -55,47 +59,44 @@ function ClientManagement() {
     }
   }, [isModalOpen])
 
+  const openClientModal = (client = emptyClient, editing = false) => {
+    setCurrentClient({ ...client })
+    setIsEditing(editing)
+    setIsModalOpen(true)
+  }
+
   // Add keyboard shortcuts for Cmd/Ctrl + A to trigger the add functionality
   // and Cmd/Ctrl + S to save and Cmd/Ctrl + C to cancel when modal is open
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Check for Cmd+A (Mac) or Ctrl+A (Windows/Linux)
+      // Cmd/Ctrl + A to open the add-client modal when it is not already open
       if ((e.metaKey || e.ctrlKey) && (e.key === "a" || e.key === "A")) {
-        // Prevent the default behavior (select all text)
-        e.preventDefault()
-
-        // Only trigger if not in a text input or textarea and modal is not open
         if (
           !isModalOpen &&
           document.activeElement.tagName !== "INPUT" &&
           document.activeElement.tagName !== "TEXTAREA"
         ) {
-          setCurrentClient({
-            clientName: "",
-            clientNumber: "",
-            clientAddress: "",
-            isFiler: false,
-            ntnNumber: "",
-          })
-          setIsEditing(false)
-          setIsModalOpen(true)
+          e.preventDefault()
+          openClientModal()
         }
       }
 
-      // Add keyboard shortcuts for modal when it's open
-      if (isModalOpen) {
-        // Cmd/Ctrl + S to submit form
-        if ((e.metaKey || e.ctrlKey) && (e.key === "s" || e.key === "S")) {
-          e.preventDefault()
-          if (formRef.current) {
+      // Cmd/Ctrl + S to submit form when modal is open
+      if (isModalOpen && (e.metaKey || e.ctrlKey) && (e.key === "s" || e.key === "S")) {
+        e.preventDefault()
+        if (formRef.current) {
+          if (typeof formRef.current.requestSubmit === "function") {
+            formRef.current.requestSubmit()
+          } else {
             formRef.current.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }))
           }
         }
-        // Cmd/Ctrl + C to close modal
-        else if ((e.metaKey || e.ctrlKey) && (e.key === "c" || e.key === "C")) {
-          e.preventDefault()
-          setIsModalOpen(false)
-        }
+      }
+
+      // Cmd/Ctrl + C to close modal when modal is open
+      if (isModalOpen && (e.metaKey || e.ctrlKey) && (e.key === "c" || e.key === "C")) {
+        e.preventDefault()
+        setIsModalOpen(false)
       }
     }
 
@@ -137,17 +138,11 @@ function ClientManagement() {
       }
 
       setIsModalOpen(false)
-      setCurrentClient({
-        clientName: "",
-        clientNumber: "",
-        clientAddress: "",
-        isFiler: false,
-        ntnNumber: "",
-      })
+      setCurrentClient(emptyClient)
       setIsEditing(false)
       // Invalidate cache and refresh data
       dataService.invalidateCacheOnModification('clients')
-      refreshClients()
+      await refreshClients()
     } catch (error) {
       console.error("Error saving client:", error)
       toast.error("Failed to save client")
@@ -155,25 +150,26 @@ function ClientManagement() {
   }
 
   const handleEdit = (client) => {
-    setCurrentClient(client)
-    setIsEditing(true)
-    setIsModalOpen(true)
+    openClientModal(client, true)
   }
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this client? This action cannot be undone and will restore client.")) {
-      return
-    }
+  const handleDelete = (id) => {
+    setConfirmDeleteId(id)
+  }
 
+  const performDelete = async (id) => {
+    setDeletingId(id)
     try {
-      await window.api.deleteClient(id);
-      toast.success("Client deleted successfully");
-      // Invalidate cache and refresh data
+      await window.api.deleteClient(id)
+      toast.success("Client deleted successfully")
       dataService.invalidateCacheOnModification('clients')
-      refreshClients()
+      await refreshClients()
     } catch (error) {
       console.error("Error deleting client:", error)
       toast.error("Failed to delete client")
+    } finally {
+      setDeletingId(null)
+      setConfirmDeleteId(null)
     }
   }
 
@@ -184,17 +180,7 @@ function ClientManagement() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Client Management: ({clients.length} of {total})</h1>
         <button
-          onClick={() => {
-            setCurrentClient({
-              clientName: "",
-              clientNumber: "",
-              clientAddress: "",
-              isFiler: false,
-              ntnNumber: "",
-            })
-            setIsEditing(false)
-            setIsModalOpen(true)
-          }}
+          onClick={() => openClientModal()}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
         >
           Add New Client
@@ -269,12 +255,31 @@ function ClientManagement() {
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button onClick={() => handleEdit(client)} className="text-blue-600 hover:text-blue-900 mr-4">
+                    <button onClick={() => handleEdit(client)} className={`text-blue-600 hover:text-blue-900 mr-4 ${deletingId ? 'opacity-50 pointer-events-none' : ''}`}>
                       Edit
                     </button>
-                    <button onClick={() => handleDelete(client._id)} className="text-red-600 hover:text-red-900">
-                      Delete
-                    </button>
+                    {confirmDeleteId === client._id ? (
+                      <>
+                        <button
+                          onClick={() => performDelete(client._id)}
+                          disabled={deletingId === client._id}
+                          className="bg-red-600 text-white px-2 py-1 rounded-md mr-2"
+                        >
+                          {deletingId === client._id ? 'Deleting...' : 'Confirm Delete'}
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteId(null)}
+                          disabled={!!deletingId}
+                          className="border border-gray-300 px-2 py-1 rounded-md"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button onClick={() => handleDelete(client._id)} className="text-red-600 hover:text-red-900" disabled={!!deletingId}>
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))

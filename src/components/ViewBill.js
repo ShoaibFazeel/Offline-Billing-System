@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import toast from "react-hot-toast"
 import configService from "../services/ConfigService"
+import dataService from "../services/DataService"
 import storageService from "../services/StorageService"
 
 // Add this import at the top of the file
@@ -31,6 +32,8 @@ function ViewBill() {
   const [productSearchTerms, setProductSearchTerms] = useState({})
   const [originalItems, setOriginalItems] = useState([])
   const [showDiscountAsAmount, setShowDiscountAsAmount] = useState(true)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   // Add refs for search inputs
   const clientSearchRef = useRef(null)
@@ -230,7 +233,7 @@ function ViewBill() {
   const handleDateChange = (e) => {
     setEditedBill({
       ...editedBill,
-      billDate: new Date(e.target.value),
+      billDate: new Date(`${e.target.value}T00:00:00`),
     })
   }
 
@@ -417,8 +420,8 @@ function ViewBill() {
         items: itemsWithIds,
       }
 
-      console.log("Saving updated bill:", JSON.stringify(billToSave))
       await window.api.updateBill(billToSave)
+      dataService.invalidateCacheOnModification("bills")
       toast.success("Bill updated successfully")
       setIsEditing(false)
       fetchBill() // Refresh bill data
@@ -481,10 +484,25 @@ function ViewBill() {
       } else {
         const blobUrl = URL.createObjectURL(blob)
         const printWindow = window.open(blobUrl)
+
+        if (!printWindow) {
+          URL.revokeObjectURL(blobUrl)
+          toast.error("Popup blocked. Please allow popups to print.")
+          return
+        }
+
+        const cleanup = () => {
+          URL.revokeObjectURL(blobUrl)
+          printWindow.onbeforeunload = null
+          printWindow.onafterprint = null
+        }
+
         printWindow.onload = () => {
           printWindow.focus()
           printWindow.print()
         }
+        printWindow.onafterprint = cleanup
+        printWindow.onbeforeunload = cleanup
         toast.success("Print dialog opened")
       }
     } catch (error) {
@@ -493,11 +511,13 @@ function ViewBill() {
     }
   }
 
-  const deleteBill = async () => {
-    if (!window.confirm("Are you sure you want to delete this bill? This action cannot be undone and will restore product quantities.")) {
-      return
-    }
+  const deleteBill = () => {
+    setConfirmDelete(true)
+  }
 
+  const performDelete = async () => {
+    if (!bill) return
+    setDeleting(true)
     try {
       await window.api.deleteBill(bill._id)
       toast.success("Bill deleted successfully")
@@ -510,6 +530,9 @@ function ViewBill() {
     } catch (error) {
       console.error("Error deleting bill:", error)
       toast.error("Failed to delete bill")
+    } finally {
+      setDeleting(false)
+      setConfirmDelete(false)
     }
   }
 
@@ -762,6 +785,14 @@ function ViewBill() {
     return afterRegularDiscount * (item.extraDiscount / 100)
   }
 
+  const fieldOfficer = fieldOfficers.find(
+    (o) => o._id === bill.fieldOfficerId
+  );
+
+  const salesman = salesmen.find(
+    (s) => s._id === bill.salesmanId
+  );
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -843,11 +874,19 @@ function ViewBill() {
                 Print PDF
               </button>
               <button
-                onClick={deleteBill}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md"
+                onClick={confirmDelete ? performDelete : deleteBill}
+                className={`bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md ${deleting ? 'opacity-60 pointer-events-none' : ''}`}
               >
-                Delete Bill
+                {confirmDelete ? (deleting ? 'Deleting...' : 'Confirm Delete') : 'Delete Bill'}
               </button>
+              {confirmDelete && !deleting && (
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="ml-2 border border-gray-300 px-3 py-2 rounded-md"
+                >
+                  Cancel
+                </button>
+              )}
             </>
           )}
         </div>
@@ -887,6 +926,9 @@ function ViewBill() {
                   <div className="mt-2 p-2 bg-gray-50 rounded-md">
                     <div className="font-medium">{clients.find((c) => c._id === editedBill.clientId)?.clientName}</div>
                     <div className="text-sm text-gray-500">
+                      {clients.find((c) => c._id === editedBill.clientId)?.clientAddress}
+                    </div>
+                    <div className="text-sm text-gray-500">
                       {clients.find((c) => c._id === editedBill.clientId)?.clientNumber}
                     </div>
                   </div>
@@ -917,7 +959,7 @@ function ViewBill() {
                 {isEditing ? (
                   <input
                     type="date"
-                    value={new Date(editedBill.billDate).toISOString().split("T")[0]}
+                    value={configService.formatIsoDate(editedBill.billDate)}
                     onChange={handleDateChange}
                     className="p-1 border border-gray-300 rounded-md"
                   />
@@ -926,7 +968,7 @@ function ViewBill() {
                 )}
               </div>
               <div>
-                <span className="font-medium">Total Amount: </span>PKR
+                <span className="font-medium">Total Amount: </span>PKR:&nbsp;
                 {(isEditing ? editedBill.totalAmount : bill.totalAmount).toFixed(2)}
               </div>
             </div>
@@ -975,9 +1017,14 @@ function ViewBill() {
               </div>
             ) : (
               <div className="p-3 bg-gray-50 rounded-md">
-                <div className="font-medium">{bill.fieldOfficerName || "Not specified"}</div>
-                {fieldOfficers.find((o) => o._id === bill.fieldOfficerId) && (
-                  <div className="text-sm">{fieldOfficers.find((o) => o._id === bill.fieldOfficerId).phoneNumber}</div>
+                <div className="font-medium">
+                  {fieldOfficer?.name || bill.fieldOfficerName || "Not specified"}
+                </div>
+
+                {fieldOfficer?.phoneNumber && (
+                  <div className="text-sm">
+                    {fieldOfficer.phoneNumber}
+                  </div>
                 )}
               </div>
             )}
@@ -1021,9 +1068,14 @@ function ViewBill() {
               </div>
             ) : (
               <div className="p-3 bg-gray-50 rounded-md">
-                <div className="font-medium">{bill.salesmanName || "Not specified"}</div>
-                {salesmen.find((s) => s._id === bill.salesmanId) && (
-                  <div className="text-sm">{salesmen.find((s) => s._id === bill.salesmanId).phoneNumber}</div>
+                <div className="font-medium">
+                  {salesman?.name || bill.salesmanName || "Not specified"}
+                </div>
+
+                {salesman?.phoneNumber && (
+                  <div className="text-sm">
+                    {salesman.phoneNumber}
+                  </div>
                 )}
               </div>
             )}

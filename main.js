@@ -100,6 +100,15 @@ function toIsoDate(value) {
   return date.toISOString()
 }
 
+function addOneDayToDateString(dateString) {
+  if (!dateString) return dateString
+  const [year, month, day] = dateString.split("-").map(Number)
+  if (!year || !month || !day) return dateString
+  const date = new Date(Date.UTC(year, month - 1, day))
+  date.setUTCDate(date.getUTCDate() + 1)
+  return date.toISOString().slice(0, 10)
+}
+
 /** Read lines from a NeDB flat file and return parsed objects */
 function readNedbFile(filePath) {
   if (!fs.existsSync(filePath)) return []
@@ -742,8 +751,8 @@ ipcMain.handle("get-bills", async (event, opts = {}) => {
   }
 
   if (toDate) {
-    whereClauses.push("billDate <= ?")
-    params.push(toDate)
+    whereClauses.push("billDate < ?")
+    params.push(addOneDayToDateString(toDate))
   }
 
   const fromWhere = `FROM bills${whereClauses.length ? ` WHERE ${whereClauses.join(" AND ")}` : ""}`

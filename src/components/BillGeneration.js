@@ -1,14 +1,15 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { Fragment, useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import toast from "react-hot-toast"
 import { useDropdownData } from "../hooks/useLazyData"
 import dataService from "../services/DataService"
+import configService from "../services/ConfigService"
 
 // Helper function to generate a unique ID
 function generateUniqueId() {
-  return `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  return `item_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
 }
 
 function BillGeneration() {
@@ -46,7 +47,7 @@ function BillGeneration() {
   // List of added items
   const [billItems, setBillItems] = useState([])
 
-  const [billDate, setBillDate] = useState(new Date().toISOString().split("T")[0])
+  const [billDate, setBillDate] = useState(configService.getTodayIsoDate())
   const [billTotal, setBillTotal] = useState(0)
   const [productSearchTerm, setProductSearchTerm] = useState("")
   const [bonusProductSearchTerms, setBonusProductSearchTerms] = useState({})
@@ -1071,19 +1072,18 @@ function BillGeneration() {
       fieldOfficerName: selectedFieldOfficer.name,
       salesmanId: selectedSalesman._id,
       salesmanName: selectedSalesman.name,
-      billDate: new Date(billDate),
+      billDate: new Date(`${billDate}T00:00:00`),
       items: itemsWithIds,
       totalAmount: roundedTotal,
     }
 
     try {
-      console.log("Saving bill:", JSON.stringify(bill))
       const savedBill = await window.api.addBill(bill)
-      
+
       // Invalidate cache for bills and dashboard stats
       dataService.invalidateCacheOnModification('bills')
       dataService.invalidateCacheOnModification('dashboardStats')
-      
+
       toast.success("Bill saved successfully")
       navigate(`/bill/${savedBill._id}`)
     } catch (error) {
@@ -1646,8 +1646,8 @@ function BillGeneration() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {billItems.map((item, index) => (
-                    <>
-                      <tr key={item.id} className={item.isBonus ? "bg-green-50" : ""}>
+                    <Fragment key={item.id}>
+                      <tr className={item.isBonus ? "bg-green-50" : ""}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{index + 1}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                           <div>{item.productName}</div>
@@ -1680,9 +1680,7 @@ function BillGeneration() {
                           </button>
                         </td>
                       </tr>
-                      {/* Display bonus items if any */}
-                      {item.bonusItems &&
-                        item.bonusItems.length > 0 &&
+                      {item.bonusItems?.length > 0 &&
                         item.bonusItems.map((bonusItem, bonusIndex) => (
                           <tr key={`${item.id}-bonus-${bonusIndex}`} className="bg-green-50">
                             <td className="px-6 py-4 pl-10 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -1714,7 +1712,7 @@ function BillGeneration() {
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">-</td>
                           </tr>
                         ))}
-                    </>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

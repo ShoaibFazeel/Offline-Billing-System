@@ -5,6 +5,15 @@ import toast from "react-hot-toast"
 import { useLazyData } from "../hooks/useLazyData"
 import dataService from "../services/DataService"
 
+const emptyProduct = {
+  productName: "",
+  productPrice: 0,
+  hasInfiniteQuantity: true,
+  quantity: 0,
+  companyName: "",
+  containerSize: "",
+}
+
 function InventoryManagement() {
   // Use lazy loading for products
   const { 
@@ -19,16 +28,11 @@ function InventoryManagement() {
   } = useLazyData('products', '', 50)
   
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [currentProduct, setCurrentProduct] = useState({
-    productName: "",
-    productPrice: "",
-    hasInfiniteQuantity: true,
-    quantity: 0,
-    companyName: "",
-    containerSize: "",
-  })
+  const [currentProduct, setCurrentProduct] = useState(emptyProduct)
   const [isEditing, setIsEditing] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
 
   // Add refs for auto-focus
   const productNameInputRef = useRef(null)
@@ -58,6 +62,12 @@ function InventoryManagement() {
     }
   }, [isModalOpen])
 
+  const openProductModal = (product = emptyProduct, editing = false) => {
+    setCurrentProduct({ ...product })
+    setIsEditing(editing)
+    setIsModalOpen(true)
+  }
+
   // Add keyboard shortcuts for Cmd/Ctrl + A to trigger the add functionality
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -72,16 +82,7 @@ function InventoryManagement() {
           document.activeElement.tagName !== "INPUT" &&
           document.activeElement.tagName !== "TEXTAREA"
         ) {
-          setCurrentProduct({
-            productName: "",
-            productPrice: "",
-            hasInfiniteQuantity: true,
-            quantity: 0,
-            companyName: "",
-            containerSize: "",
-          })
-          setIsEditing(false)
-          setIsModalOpen(true)
+          openProductModal()
         }
       }
 
@@ -91,7 +92,11 @@ function InventoryManagement() {
         if ((e.metaKey || e.ctrlKey) && (e.key === "s" || e.key === "S")) {
           e.preventDefault()
           if (formRef.current) {
-            formRef.current.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }))
+            if (typeof formRef.current.requestSubmit === "function") {
+              formRef.current.requestSubmit()
+            } else {
+              formRef.current.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }))
+            }
           }
         }
         // Cmd/Ctrl + C to close modal
@@ -145,18 +150,11 @@ function InventoryManagement() {
       }
 
       setIsModalOpen(false)
-      setCurrentProduct({
-        productName: "",
-        productPrice: "",
-        hasInfiniteQuantity: true,
-        quantity: 0,
-        companyName: "",
-        containerSize: "",
-      })
+      setCurrentProduct(emptyProduct)
       setIsEditing(false)
       // Invalidate cache and refresh data
       dataService.invalidateCacheOnModification('products')
-      refreshProducts()
+      await refreshProducts()
     } catch (error) {
       console.error("Error saving product:", error)
       toast.error("Failed to save product")
@@ -164,35 +162,31 @@ function InventoryManagement() {
   }
 
   const handleEdit = (product) => {
-    // Ensure product has the hasInfiniteQuantity property (for backward compatibility)
     const productToEdit = {
       ...product,
       hasInfiniteQuantity: product.hasInfiniteQuantity !== undefined ? product.hasInfiniteQuantity : true,
       quantity: product.quantity || 0,
     }
-    setCurrentProduct(productToEdit)
-    setIsEditing(true)
-    setIsModalOpen(true)
-    // Focus on the product name input when the edit modal opens
-    if (productNameInputRef.current) {
-      productNameInputRef.current.focus()
-    }
+    openProductModal(productToEdit, true)
   }
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this product? This action cannot be undone and will restore product quantities.")) {
-      return
-    }
+  const handleDelete = (id) => {
+    setConfirmDeleteId(id)
+  }
 
+  const performDelete = async (id) => {
+    setDeletingId(id)
     try {
-      await window.api.deleteProduct(id);
-      toast.success("Product deleted successfully");
-      // Invalidate cache and refresh data
+      await window.api.deleteProduct(id)
+      toast.success("Product deleted successfully")
       dataService.invalidateCacheOnModification('products')
-      refreshProducts()
+      await refreshProducts()
     } catch (error) {
       console.error("Error deleting product:", error)
       toast.error("Failed to delete product")
+    } finally {
+      setDeletingId(null)
+      setConfirmDeleteId(null)
     }
   }
 
@@ -203,22 +197,7 @@ function InventoryManagement() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Inventory Management: ({products.length} of {total})</h1>
         <button
-          onClick={() => {
-            setCurrentProduct({
-              productName: "",
-              productPrice: "",
-              hasInfiniteQuantity: true,
-              quantity: 0,
-              companyName: "",
-              containerSize: "",
-            })
-            setIsEditing(false)
-            setIsModalOpen(true)
-            // Focus on the product name input when the add modal opens
-            if (productNameInputRef.current) {
-              productNameInputRef.current.focus()
-            }
-          }}
+          onClick={() => openProductModal()}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
         >
           Add New Product
@@ -299,12 +278,31 @@ function InventoryManagement() {
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button onClick={() => handleEdit(product)} className="text-blue-600 hover:text-blue-900 mr-4">
+                    <button onClick={() => handleEdit(product)} className={`text-blue-600 hover:text-blue-900 mr-4 ${deletingId ? 'opacity-50 pointer-events-none' : ''}`}>
                       Edit
                     </button>
-                    <button onClick={() => handleDelete(product._id)} className="text-red-600 hover:text-red-900">
-                      Delete
-                    </button>
+                    {confirmDeleteId === product._id ? (
+                      <>
+                        <button
+                          onClick={() => performDelete(product._id)}
+                          disabled={deletingId === product._id}
+                          className="bg-red-600 text-white px-2 py-1 rounded-md mr-2"
+                        >
+                          {deletingId === product._id ? 'Deleting...' : 'Confirm Delete'}
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteId(null)}
+                          disabled={!!deletingId}
+                          className="border border-gray-300 px-2 py-1 rounded-md"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button onClick={() => handleDelete(product._id)} className="text-red-600 hover:text-red-900" disabled={!!deletingId}>
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))

@@ -54,11 +54,15 @@ function GeneratePdfButton({ bill, className, showDiscountAsAmount = false, prod
       } else {
         const blobUrl = URL.createObjectURL(blob)
         const printWindow = window.open(blobUrl)
-        printWindow.onload = () => {
-          printWindow.focus()
-          printWindow.print()
+        if (printWindow) {
+          printWindow.onload = () => {
+            printWindow.focus()
+            printWindow.print()
+          }
+          toast.success("Print dialog opened")
+        } else {
+          toast.error("Unable to open print window. Please allow pop-ups and try again.")
         }
-        toast.success("Print dialog opened")
       }
     } catch (error) {
       console.error("Error printing PDF:", error)

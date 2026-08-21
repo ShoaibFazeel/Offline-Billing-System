@@ -54,7 +54,7 @@ const SearchBar = ({
     } else {
       setInternalSearchTerm(value)
     }
-    setShowDropdown(true)
+    setShowDropdown(value.trim() !== "")
     setSelectedIndex(-1)
   }
 
@@ -96,6 +96,12 @@ const SearchBar = ({
       setShowDropdown(false)
     }
   }
+
+  useEffect(() => {
+    if (!isExternalState) {
+      setInternalSearchTerm(initialValue)
+    }
+  }, [initialValue, isExternalState])
 
   // Close dropdown when clicking outside
   useEffect(() => {
