@@ -77,7 +77,12 @@ class ConfigService {
 
     formatIsoDate(date) {
         try {
+            if (!date) return ""
+            if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date.trim())) {
+                return date.trim()
+            }
             const d = date instanceof Date ? date : new Date(date)
+            if (Number.isNaN(d.getTime())) return ""
             return new Intl.DateTimeFormat("en-CA", { timeZone: this.config.timezone }).format(d)
         } catch (error) {
             console.error("Error formatting ISO date:", error)
