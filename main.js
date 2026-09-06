@@ -100,13 +100,17 @@ function toIsoDate(value) {
   return date.toISOString()
 }
 
-function addOneDayToDateString(dateString) {
+function addDaysToDateString(dateString, days = 0) {
   if (!dateString) return dateString
   const [year, month, day] = dateString.split("-").map(Number)
   if (!year || !month || !day) return dateString
   const date = new Date(Date.UTC(year, month - 1, day))
-  date.setUTCDate(date.getUTCDate() + 1)
+  date.setUTCDate(date.getUTCDate() + days)
   return date.toISOString().slice(0, 10)
+}
+
+function addOneDayToDateString(dateString) {
+  return addDaysToDateString(dateString, 1)
 }
 
 /** Read lines from a NeDB flat file and return parsed objects */
@@ -746,13 +750,15 @@ ipcMain.handle("get-bills", async (event, opts = {}) => {
   }
 
   if (fromDate) {
-    whereClauses.push("billDate >= ?")
-    params.push(fromDate)
+    const fromBuf = addDaysToDateString(fromDate, -1)
+    whereClauses.push("(DATE(billDate) >= ? OR DATE(billDate, 'localtime') >= ? OR billDate >= ?)")
+    params.push(fromBuf, fromBuf, fromBuf)
   }
 
   if (toDate) {
-    whereClauses.push("billDate < ?")
-    params.push(addOneDayToDateString(toDate))
+    const toBuf = addDaysToDateString(toDate, 1)
+    whereClauses.push("(DATE(billDate) <= ? OR DATE(billDate, 'localtime') <= ? OR billDate <= ?)")
+    params.push(toBuf, toBuf, `${toBuf}T23:59:59.999Z`)
   }
 
   const fromWhere = `FROM bills${whereClauses.length ? ` WHERE ${whereClauses.join(" AND ")}` : ""}`

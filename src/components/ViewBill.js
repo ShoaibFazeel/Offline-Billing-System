@@ -13,6 +13,13 @@ function generateUniqueId() {
   return `item_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
 }
 
+function scrollDropdownIndexIntoView(container, index) {
+  if (!container || index < 0) return
+  const selectedElement = container.querySelector(`[data-dropdown-index="${index}"]`)
+  if (!selectedElement) return
+  selectedElement.scrollIntoView({ block: "nearest", behavior: "smooth" })
+}
+
 function ViewBill() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -867,10 +874,12 @@ function ViewBill() {
 
     if (e.key === "ArrowDown") {
       e.preventDefault()
-      setSelectedProductIndex(Math.min(selectedProductIndex + 1, filtered.length - 1))
+      const nextIndex = Math.min((selectedProductIndex < 0 ? -1 : selectedProductIndex) + 1, filtered.length - 1)
+      setSelectedProductIndex(nextIndex)
     } else if (e.key === "ArrowUp") {
       e.preventDefault()
-      setSelectedProductIndex(Math.max(selectedProductIndex - 1, 0))
+      const nextIndex = Math.max(selectedProductIndex < 0 ? 0 : selectedProductIndex - 1, 0)
+      setSelectedProductIndex(nextIndex)
     } else if (e.key === "Enter" && selectedProductIndex >= 0) {
       e.preventDefault()
       const selectedProduct = filtered[selectedProductIndex]
@@ -891,18 +900,20 @@ function ViewBill() {
       e.preventDefault()
       setSelectedBonusProductIndex((prev) => {
         const currentIndex = prev[key] !== undefined ? prev[key] : -1
+        const nextIndex = Math.min(currentIndex + 1, filtered.length - 1)
         return {
           ...prev,
-          [key]: Math.min(currentIndex + 1, filtered.length - 1),
+          [key]: nextIndex,
         }
       })
     } else if (e.key === "ArrowUp") {
       e.preventDefault()
       setSelectedBonusProductIndex((prev) => {
         const currentIndex = prev[key] !== undefined ? prev[key] : 0
+        const nextIndex = Math.max(currentIndex - 1, 0)
         return {
           ...prev,
-          [key]: Math.max(currentIndex - 1, 0),
+          [key]: nextIndex,
         }
       })
     } else if (e.key === "Enter") {
@@ -999,6 +1010,43 @@ function ViewBill() {
       setSalesmanSearchTerm("")
     }
   }
+
+  const scrollDropdownItemIntoView = (container, index) => {
+    scrollDropdownIndexIntoView(container, index)
+  }
+
+  useEffect(() => {
+    if (selectedClientIndex >= 0) {
+      scrollDropdownItemIntoView(clientDropdownRef.current, selectedClientIndex)
+    }
+  }, [selectedClientIndex])
+
+  useEffect(() => {
+    if (selectedFieldOfficerIndex >= 0) {
+      scrollDropdownItemIntoView(fieldOfficerDropdownRef.current, selectedFieldOfficerIndex)
+    }
+  }, [selectedFieldOfficerIndex])
+
+  useEffect(() => {
+    if (selectedSalesmanIndex >= 0) {
+      scrollDropdownItemIntoView(salesmanDropdownRef.current, selectedSalesmanIndex)
+    }
+  }, [selectedSalesmanIndex])
+
+  useEffect(() => {
+    if (selectedProductIndex >= 0) {
+      scrollDropdownItemIntoView(productDropdownRef.current, selectedProductIndex)
+    }
+  }, [selectedProductIndex])
+
+  useEffect(() => {
+    Object.keys(selectedBonusProductIndex).forEach((bonusKey) => {
+      const currentIndex = selectedBonusProductIndex[bonusKey]
+      if (currentIndex >= 0) {
+        scrollDropdownItemIntoView(bonusProductDropdownRefs.current[bonusKey], currentIndex)
+      }
+    })
+  }, [selectedBonusProductIndex])
 
   // Inventory validation for edit mode
   const checkInventoryLevels = (flatItemsToValidate) => {
@@ -2015,12 +2063,14 @@ function ViewBill() {
                           {/* Search Dropdown Popup */}
                           {showProductDropdown && productSearchTerm && filteredProducts(productSearchTerm).length > 0 && (
                             <div
-                              className="absolute z-40 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl max-h-72 overflow-auto product-dropdown-container divide-y divide-gray-100"
+                              className="absolute z-40 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl product-dropdown-container divide-y divide-gray-100"
+                              style={{ maxHeight: "18rem", overflowY: "auto" }}
                               ref={productDropdownRef}
                             >
                               {filteredProducts(productSearchTerm).map((product, productIndex) => (
                                 <div
                                   key={product._id}
+                                  data-dropdown-index={productIndex}
                                   className={`p-3 hover:bg-blue-50 cursor-pointer transition-colors ${
                                     productIndex === selectedProductIndex ? "bg-blue-100/80" : ""
                                   }`}
