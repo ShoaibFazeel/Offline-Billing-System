@@ -8,6 +8,7 @@ export const useLazyData = (dataType, initialSearchTerm = '', initialLimit = 50,
   const [error, setError] = useState(null)
   const [hasMore, setHasMore] = useState(false)
   const [total, setTotal] = useState(0)
+  const [totalAmount, setTotalAmount] = useState(0)
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm)
   const [limit] = useState(initialLimit)
   const [offset, setOffset] = useState(0)
@@ -41,7 +42,7 @@ export const useLazyData = (dataType, initialSearchTerm = '', initialLimit = 50,
           result = await dataService.getClients(search, limit, fetchOffset)
           break
         case 'bills':
-          result = await dataService.getBills(search, limit, fetchOffset)
+          result = await dataService.getBills(search, limit, fetchOffset, true, params)
           break
         case 'fieldOfficers':
           result = await dataService.getFieldOfficers(search, limit, fetchOffset)
@@ -70,6 +71,7 @@ export const useLazyData = (dataType, initialSearchTerm = '', initialLimit = 50,
         }
         setHasMore(result.hasMore)
         setTotal(result.total)
+        setTotalAmount(result.totalAmount || 0)
       }
     } catch (err) {
       if (!abortControllerRef.current.signal.aborted) {
@@ -78,6 +80,7 @@ export const useLazyData = (dataType, initialSearchTerm = '', initialLimit = 50,
         setData([])
         setHasMore(false)
         setTotal(0)
+        setTotalAmount(0)
       }
     } finally {
       if (!abortControllerRef.current.signal.aborted) {
@@ -104,7 +107,7 @@ export const useLazyData = (dataType, initialSearchTerm = '', initialLimit = 50,
             result = await dataService.getClients(searchTerm, limit, newOffset)
             break
           case 'bills':
-            result = await dataService.getBills(searchTerm, limit, newOffset)
+            result = await dataService.getBills(searchTerm, limit, newOffset, true, params)
             break
           case 'fieldOfficers':
             result = await dataService.getFieldOfficers(searchTerm, limit, newOffset)
@@ -124,6 +127,7 @@ export const useLazyData = (dataType, initialSearchTerm = '', initialLimit = 50,
           setOffset(newOffset + limit)
           setHasMore(result.hasMore)
           setTotal(result.total)
+          setTotalAmount(result.totalAmount || 0)
         }
       } catch (err) {
         if (!abortControllerRef.current.signal.aborted) {
@@ -132,6 +136,7 @@ export const useLazyData = (dataType, initialSearchTerm = '', initialLimit = 50,
           setData([])
           setHasMore(false)
           setTotal(0)
+          setTotalAmount(0)
         }
       } finally {
         if (!abortControllerRef.current.signal.aborted) setLoading(false)
@@ -180,6 +185,7 @@ export const useLazyData = (dataType, initialSearchTerm = '', initialLimit = 50,
     error,
     hasMore,
     total,
+    totalAmount,
     searchTerm,
     currentPage,
     search,

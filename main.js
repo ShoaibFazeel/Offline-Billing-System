@@ -763,7 +763,7 @@ ipcMain.handle("get-bills", async (event, opts = {}) => {
 
   const fromWhere = `FROM bills${whereClauses.length ? ` WHERE ${whereClauses.join(" AND ")}` : ""}`
 
-  return queryPaginated({
+  const paginatedResult = queryPaginated({
     fromWhere,
     params,
     orderBy: "billDate DESC, CAST(billId AS INTEGER) DESC",
@@ -771,6 +771,13 @@ ipcMain.handle("get-bills", async (event, opts = {}) => {
     offset,
     parseRow: parseBill,
   })
+  const totalAmountRow = queryOne(`SELECT COALESCE(SUM(totalAmount), 0) as totalAmount ${fromWhere}`, params)
+  if (Array.isArray(paginatedResult)) return paginatedResult
+
+  return {
+    ...paginatedResult,
+    totalAmount: Number(totalAmountRow?.totalAmount || 0),
+  }
 })
 
 ipcMain.handle("get-low-stock-products", async (event, opts = {}) => {

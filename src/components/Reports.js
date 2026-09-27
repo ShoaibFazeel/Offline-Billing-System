@@ -18,38 +18,86 @@ function Reports() {
     }
   }
 
+  const [savedFilters] = useState(() => {
+    try {
+      const filters = JSON.parse(storageService.getLocalItem("reportsFilters") || "{}")
+      return filters && typeof filters === "object" ? filters : {}
+    } catch {
+      return {}
+    }
+  })
+
   const [bills, setBills] = useState([])
   const [clients, setClients] = useState([])
   const [products, setProducts] = useState([])
   const [fieldOfficers, setFieldOfficers] = useState([])
   const [salesmen, setSalesmen] = useState([])
   const [loading, setLoading] = useState(true)
-  const [addressFilter, setAddressFilter] = useState("")
-  const [salesmanFilter, setSalesmanFilter] = useState("")
-  const [fieldOfficerFilter, setFieldOfficerFilter] = useState("")
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
+  const [addressFilter, setAddressFilter] = useState(() => savedFilters.addressFilter || "")
+  const [salesmanFilter, setSalesmanFilter] = useState(() => savedFilters.salesmanFilter || "")
+  const [fieldOfficerFilter, setFieldOfficerFilter] = useState(() => savedFilters.fieldOfficerFilter || "")
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(() => savedFilters.showAdvancedFilters === true)
   const [addresses, setAddresses] = useState([])
-  const [dateFilter, setDateFilter] = useState(getDefaultDateFilter)
-  const [groupBy, setGroupBy] = useState("address") // 'address', 'client', 'date'
+  const [dateFilter, setDateFilter] = useState(() => ({ ...getDefaultDateFilter(), ...savedFilters.dateFilter }))
+  const [groupBy, setGroupBy] = useState(() => savedFilters.groupBy || "address") // 'address', 'client', 'date'
   const [error, setError] = useState(null)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [reportType, setReportType] = useState("daily") // 'daily', 'item', or 'itemCompany'
+  const [searchTerm, setSearchTerm] = useState(() => savedFilters.searchTerm || "")
+  const [reportType, setReportType] = useState(() => savedFilters.reportType || "daily") // 'daily', 'item', or 'itemCompany'
 
   // Item Report State
-  const [selectedProduct, setSelectedProduct] = useState("")
+  const [selectedProduct, setSelectedProduct] = useState(() => savedFilters.selectedProduct || "")
+  const [selectedProductId, setSelectedProductId] = useState(() => savedFilters.selectedProductId || "")
   const [selectedProductObj, setSelectedProductObj] = useState(null)
 
   // Item Company Report State
-  const [selectedItemName, setSelectedItemName] = useState("")
-  const [selectedCompanyForItem, setSelectedCompanyForItem] = useState("")
+  const [selectedItemName, setSelectedItemName] = useState(() => savedFilters.selectedItemName || "")
+  const [selectedCompanyForItem, setSelectedCompanyForItem] = useState(() => savedFilters.selectedCompanyForItem || "")
 
   // Company Filter for Daily Sale Report
   const [companies, setCompanies] = useState([])
-  const [companyFilter, setCompanyFilter] = useState("")
+  const [companyFilter, setCompanyFilter] = useState(() => savedFilters.companyFilter || "")
 
   useEffect(() => {
     fetchData()
   }, [])
+
+  useEffect(() => {
+    storageService.setLocalItem("reportsFilters", JSON.stringify({
+      addressFilter,
+      companyFilter,
+      dateFilter,
+      fieldOfficerFilter,
+      groupBy,
+      reportType,
+      salesmanFilter,
+      searchTerm,
+      selectedCompanyForItem,
+      selectedItemName,
+      selectedProduct,
+      selectedProductId,
+      showAdvancedFilters,
+    }))
+  }, [
+    addressFilter,
+    companyFilter,
+    dateFilter,
+    fieldOfficerFilter,
+    groupBy,
+    reportType,
+    salesmanFilter,
+    searchTerm,
+    selectedCompanyForItem,
+    selectedItemName,
+    selectedProduct,
+    selectedProductId,
+    showAdvancedFilters,
+  ])
+
+  useEffect(() => {
+    if (!selectedProductId || products.length === 0) return
+    const product = products.find((item) => item._id === selectedProductId)
+    if (product) setSelectedProductObj(product)
+  }, [products, selectedProductId])
 
   const fetchBillsData = async (currentDateFilter = dateFilter) => {
     const activeDateFilter = {
@@ -160,48 +208,6 @@ function Reports() {
     }
   }
 
-  // Unique item names list for Item Company Report
-  const uniqueProductItems = useMemo(() => {
-    const map = new Map()
-    products.forEach((p) => {
-      const name = (p.productName || "").trim()
-      if (!name) return
-      if (!map.has(name)) {
-        map.set(name, { _id: name, productName: name, companies: new Set() })
-      }
-      if (p.companyName) {
-        map.get(name).companies.add(p.companyName.trim())
-      }
-    })
-    return Array.from(map.values())
-      .map((item) => ({
-        _id: item._id,
-        productName: item.productName,
-        companies: Array.from(item.companies),
-        companiesCount: item.companies.size,
-      }))
-      .sort((a, b) => a.productName.localeCompare(b.productName))
-  }, [products])
-
-  // Available companies for currently selected item in Item Company Report
-  const availableCompaniesForItem = useMemo(() => {
-    if (!selectedItemName) return []
-    const cleanSearch = selectedItemName.trim().toLowerCase()
-    const matching = products.filter(
-      (p) => (p.productName || "").trim().toLowerCase() === cleanSearch
-    )
-    return [...new Set(matching.map((p) => (p.companyName || "").trim()).filter(Boolean))].sort()
-  }, [products, selectedItemName])
-
-  // Auto-adjust selected company if item changes
-  useEffect(() => {
-    if (availableCompaniesForItem.length === 1) {
-      setSelectedCompanyForItem(availableCompaniesForItem[0])
-    } else if (selectedCompanyForItem && !availableCompaniesForItem.includes(selectedCompanyForItem)) {
-      setSelectedCompanyForItem("")
-    }
-  }, [availableCompaniesForItem])
-
   const handleDateFilterChange = async (e) => {
     const { name, value } = e.target
     const nextDateFilter = { ...dateFilter, [name]: value }
@@ -221,9 +227,11 @@ function Reports() {
     if (product) {
       setSelectedProductObj(product)
       setSelectedProduct(product.productName)
+      setSelectedProductId(product._id)
     } else {
       setSelectedProductObj(null)
       setSelectedProduct("")
+      setSelectedProductId("")
     }
   }
 
@@ -231,6 +239,7 @@ function Reports() {
     if (item) {
       const prodName = (item.productName || "").trim()
       setSelectedItemName(prodName)
+      setSelectedCompanyForItem((item.companyName || "").trim())
     } else {
       setSelectedItemName("")
       setSelectedCompanyForItem("")
@@ -249,6 +258,7 @@ function Reports() {
     setCompanyFilter("")
     setSearchTerm("")
     setSelectedProduct("")
+    setSelectedProductId("")
     setSelectedProductObj(null)
     setSelectedItemName("")
     setSelectedCompanyForItem("")
@@ -261,6 +271,7 @@ function Reports() {
   useEffect(() => {
     if (!selectedProduct) {
       setSelectedProductObj(null)
+      setSelectedProductId("")
     }
   }, [selectedProduct])
 
@@ -355,6 +366,7 @@ function Reports() {
     () => ({
       totalQuantity: itemReportData.reduce((sum, item) => sum + item.quantity, 0),
       totalAmount: itemReportData.reduce((sum, item) => sum + item.amount, 0),
+      recordCount: itemReportData.length,
     }),
     [itemReportData]
   )
@@ -687,6 +699,7 @@ function Reports() {
       partyName: left + 60,
       address: left + 200,
       amount: left + 300,
+      amountRight: right,
     }
 
     const drawTableHead = (currentPage, currentY) => {
@@ -699,7 +712,9 @@ function Reports() {
       currentPage.drawText("Invoice No.", { x: col.invoiceNo, y: currentY, size: 8, font: boldItalic })
       currentPage.drawText("Party Name", { x: col.partyName, y: currentY, size: 8, font: boldItalic })
       currentPage.drawText("Address", { x: col.address, y: currentY, size: 8, font: boldItalic })
-      currentPage.drawText("Amount", { x: col.amount, y: currentY, size: 8, font: boldItalic })
+      const amountHeader = "Amount"
+      const amountHeaderWidth = boldItalic.widthOfTextAtSize(amountHeader, 8)
+      currentPage.drawText(amountHeader, { x: col.amountRight - amountHeaderWidth, y: currentY, size: 8, font: boldItalic })
       currentPage.drawLine({
         start: { x: left, y: currentY - 5 },
         end: { x: right, y: currentY - 5 },
@@ -712,6 +727,7 @@ function Reports() {
     y = drawTableHead(page, y)
 
     let totalAmount = 0
+    let totalInvoices = 0
 
     for (const group of groupedBills) {
       if (y < 80) {
@@ -722,6 +738,8 @@ function Reports() {
 
       page.drawText(group.groupName, { x: left, y, size: 9, font: bold })
       y -= 12
+      let groupTotal = 0
+      const groupInvoiceCount = group.bills.length
 
       for (const bill of group.bills) {
         if (y < 60) {
@@ -741,12 +759,26 @@ function Reports() {
         const addressY = drawWrappedText(page, address, col.address, y, col.amount - col.address - 5, italic, 7, rgb(0, 0, 0), 1)
 
         const amtStr = `${Math.round(bill.totalAmount || 0)}.00`
-        const amtWidth = font.widthOfTextAtSize(amtStr, 8)
-        page.drawText(amtStr, { x: right - amtWidth, y, size: 8, font: italic })
+        const amtWidth = italic.widthOfTextAtSize(amtStr, 8)
+        page.drawText(amtStr, { x: col.amountRight - amtWidth, y, size: 8, font: italic })
 
-        totalAmount += bill.totalAmount || 0
+        const billAmount = bill.totalAmount || 0
+        groupTotal += billAmount
+        totalAmount += billAmount
+        totalInvoices += 1
         y = Math.min(partyNameY, addressY) - 4
       }
+
+      if (y < 60) {
+        page = pdfDoc.addPage([pageWidth, pageHeight])
+        y = pageHeight - margin - 20
+        y = drawTableHead(page, y)
+      }
+      page.drawText(`Subtotal (${groupInvoiceCount} invoices):`, { x: left, y, size: 8, font: boldItalic })
+      const groupTotalStr = `${Math.round(groupTotal)}.00`
+      const groupTotalWidth = boldItalic.widthOfTextAtSize(groupTotalStr, 8)
+      page.drawText(groupTotalStr, { x: col.amountRight - groupTotalWidth, y, size: 8, font: boldItalic })
+      y -= 12
       y -= 4
     }
 
@@ -756,9 +788,11 @@ function Reports() {
     }
 
     page.drawLine({ start: { x: left, y: y + 8 }, end: { x: right, y: y + 8 }, thickness: 1, color: rgb(0, 0, 0) })
-    page.drawText("Grand Total :", { x: right - 160, y, size: 10, font: boldItalic })
+    const grandLabel = `Grand Total (${totalInvoices} invoices):`
     const grandStr = `${Math.round(totalAmount)}.00`
-    const grandWidth = bold.widthOfTextAtSize(grandStr, 10)
+    const grandWidth = boldItalic.widthOfTextAtSize(grandStr, 10)
+    const grandLabelWidth = boldItalic.widthOfTextAtSize(grandLabel, 10)
+    page.drawText(grandLabel, { x: right - grandWidth - grandLabelWidth - 8, y, size: 10, font: boldItalic })
     page.drawText(grandStr, { x: right - grandWidth, y, size: 10, font: boldItalic })
 
     return await pdfDoc.save()
@@ -834,7 +868,8 @@ function Reports() {
       partyName: left + 105,
       address: left + 240,
       quantity: left + 310,
-      amount: left + 345,
+      amountRight: right - 5,
+      quantityRight: left + 310,
     }
 
     const drawTableHead = (currentPage, currentY) => {
@@ -848,8 +883,12 @@ function Reports() {
       currentPage.drawText("Date", { x: col.date, y: currentY, size: 8, font: boldItalic })
       currentPage.drawText("Party Name", { x: col.partyName, y: currentY, size: 8, font: boldItalic })
       currentPage.drawText("Address", { x: col.address, y: currentY, size: 8, font: boldItalic })
-      currentPage.drawText("Qty", { x: col.quantity, y: currentY, size: 8, font: boldItalic })
-      currentPage.drawText("Amount", { x: col.amount, y: currentY, size: 8, font: boldItalic })
+      const quantityHeader = "Qty"
+      const quantityHeaderWidth = boldItalic.widthOfTextAtSize(quantityHeader, 8)
+      currentPage.drawText(quantityHeader, { x: col.quantityRight - quantityHeaderWidth, y: currentY, size: 8, font: boldItalic })
+      const amountHeader = "Amount"
+      const amountHeaderWidth = boldItalic.widthOfTextAtSize(amountHeader, 8)
+      currentPage.drawText(amountHeader, { x: col.amountRight - amountHeaderWidth, y: currentY, size: 8, font: boldItalic })
       currentPage.drawLine({
         start: { x: left, y: currentY - 5 },
         end: { x: right, y: currentY - 5 },
@@ -884,11 +923,13 @@ function Reports() {
       const address = sanitize(item.clientAddress).toUpperCase()
       const addressY = drawWrappedText(page, address, col.address, y, col.quantity - col.address - 5, italic, 7, rgb(0, 0, 0), 1)
 
-      page.drawText(String(item.quantity), { x: col.quantity, y, size: 8, font: italic })
+      const quantityText = String(item.quantity)
+      const quantityWidth = italic.widthOfTextAtSize(quantityText, 8)
+      page.drawText(quantityText, { x: col.quantityRight - quantityWidth, y, size: 8, font: italic })
 
-      const amountStr = `${Math.round(item.amount)}`
-      const amountWidth = font.widthOfTextAtSize(amountStr, 8)
-      page.drawText(`${amountStr}.00`, { x: right - amountWidth - 5, y, size: 8, font: italic })
+      const amountStr = `${Math.round(item.amount)}.00`
+      const amountWidth = italic.widthOfTextAtSize(amountStr, 8)
+      page.drawText(amountStr, { x: col.amountRight - amountWidth, y, size: 8, font: italic })
 
       totalQuantity += item.quantity
       totalAmount += item.amount
@@ -905,11 +946,13 @@ function Reports() {
     page.drawLine({ start: { x: left, y: y + 10 }, end: { x: right, y: y + 10 }, thickness: 1, color: rgb(0, 0, 0) })
     page.drawLine({ start: { x: left, y: y + 9 }, end: { x: right, y: y + 9 }, thickness: 1, color: rgb(0, 0, 0) })
 
-    page.drawText("Total Amount :", { x: right - 250, y, size: 10, font: boldItalic })
-    page.drawText(String(totalQuantity), { x: col.address + 30, y, size: 10, font: boldItalic })
-    const totalAmountStr = `${Math.round(totalAmount)}`
-    const totalAmountWidth = bold.widthOfTextAtSize(totalAmountStr, 10)
-    page.drawText(`${totalAmountStr}.00`, { x: right - totalAmountWidth, y, size: 10, font: boldItalic })
+    page.drawText(`Grand Total (${itemReportData.length} records):`, { x: left, y, size: 10, font: boldItalic })
+    const totalQuantityStr = String(totalQuantity)
+    const totalQuantityWidth = boldItalic.widthOfTextAtSize(totalQuantityStr, 10)
+    page.drawText(totalQuantityStr, { x: col.quantityRight - totalQuantityWidth, y, size: 10, font: boldItalic })
+    const totalAmountStr = `${Math.round(totalAmount)}.00`
+    const totalAmountWidth = boldItalic.widthOfTextAtSize(totalAmountStr, 10)
+    page.drawText(totalAmountStr, { x: col.amountRight - totalAmountWidth, y, size: 10, font: boldItalic })
 
     return await pdfDoc.save()
   }
@@ -1424,8 +1467,8 @@ function Reports() {
                   )}
                 </label>
                 <SearchBar
-                  placeholder="Select or search item name..."
-                  items={uniqueProductItems}
+                  placeholder="Select or search item, company, or quantity..."
+                  items={products}
                   displayProperty="productName"
                   iconType="product"
                   accentColor="purple"
@@ -1437,7 +1480,11 @@ function Reports() {
                 {selectedItemName && (
                   <div className="mt-1.5 px-3 py-1.5 bg-purple-50 border border-purple-200 rounded-xl flex items-center justify-between text-xs text-purple-900">
                     <span className="font-semibold truncate">
-                      {availableCompaniesForItem.length} compan{availableCompaniesForItem.length === 1 ? "y" : "ies"} available
+                      🏢 {selectedCompanyForItem || "No company"} • Qty: {products.find(
+                        (product) =>
+                          product.productName.trim().toLowerCase() === selectedItemName.trim().toLowerCase() &&
+                          product.companyName.trim().toLowerCase() === selectedCompanyForItem.trim().toLowerCase(),
+                      )?.quantity ?? "Unlimited"}
                     </span>
                     <button
                       type="button"
@@ -1448,33 +1495,6 @@ function Reports() {
                     </button>
                   </div>
                 )}
-              </div>
-
-              <div>
-                <label className="block text-gray-700 text-xs font-bold uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                  <span>🏢 2. Select Company</span>
-                  {selectedCompanyForItem && (
-                    <span className="text-[10px] bg-indigo-100 text-indigo-800 px-1.5 py-0.2 rounded font-semibold">Active</span>
-                  )}
-                </label>
-                <SearchBar
-                  placeholder={
-                    !selectedItemName
-                      ? "Select an item first..."
-                      : availableCompaniesForItem.length === 0
-                      ? "No companies found"
-                      : "All Companies or select..."
-                  }
-                  items={availableCompaniesForItem.map((c) => ({ _id: c, name: c }))}
-                  displayProperty="name"
-                  iconType="company"
-                  accentColor="purple"
-                  disabled={!selectedItemName || availableCompaniesForItem.length === 0}
-                  onSelect={(comp) => setSelectedCompanyForItem(comp ? comp.name : "")}
-                  initialValue={selectedCompanyForItem}
-                  searchTerm={selectedCompanyForItem}
-                  setSearchTerm={setSelectedCompanyForItem}
-                />
               </div>
 
               <div>
@@ -1769,10 +1789,18 @@ function Reports() {
               </div>
             ))}
 
-            <div className="bg-white rounded-2xl shadow-md border border-slate-200/80 p-4 flex justify-between items-center">
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Grand Total</span>
-              <div className="text-xl font-black text-gray-900">
-                PKR {calculateGrandTotal.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            <div className="bg-white rounded-2xl shadow-md border border-slate-200/80 p-4 flex flex-col sm:flex-row justify-between items-center gap-3">
+              <div className="flex flex-wrap items-center gap-6">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Grand Total</span>
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                  Total Invoices: {filteredBills.length}
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Amount</span>
+                <div className="text-xl font-black text-gray-900">
+                  PKR {calculateGrandTotal.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
               </div>
             </div>
           </div>
@@ -1862,12 +1890,20 @@ function Reports() {
               </div>
 
               <div className="p-4 border-t border-gray-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-center gap-3">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Quantity Sold</span>
-                  <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-sm font-black rounded-lg">{itemTotals.totalQuantity}</span>
+                <div className="flex flex-wrap items-center gap-6">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Grand Total Quantity</span>
+                    <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-sm font-black rounded-lg">{itemTotals.totalQuantity}</span>
+                  </div>
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                    Total Records: {itemTotals.recordCount}
+                  </span>
                 </div>
-                <div className="text-xl font-black text-gray-900">
-                  PKR {itemTotals.totalAmount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Amount</span>
+                  <div className="text-xl font-black text-gray-900">
+                    PKR {itemTotals.totalAmount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
                 </div>
               </div>
             </div>

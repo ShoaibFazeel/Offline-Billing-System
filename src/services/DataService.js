@@ -83,15 +83,16 @@ class DataService {
     }, useCache)
   }
 
-  async getBills(searchTerm = '', limit = this.BATCH_SIZE, offset = 0, useCache = true) {
-    const cacheKey = `bills_${searchTerm}_${limit}_${offset}`
+  async getBills(searchTerm = '', limit = this.BATCH_SIZE, offset = 0, useCache = true, dateFilters = {}) {
+    const { fromDate = '', toDate = '' } = dateFilters
+    const cacheKey = `bills_${searchTerm}_${limit}_${offset}_${fromDate}_${toDate}`
 
     return this.fetchWithCache(cacheKey, async () => {
       if (!window.api) {
         throw new Error('API not available')
       }
 
-      return window.api.getBills({ search: searchTerm, limit, offset })
+      return window.api.getBills({ search: searchTerm, limit, offset, fromDate, toDate })
     }, useCache)
   }
 

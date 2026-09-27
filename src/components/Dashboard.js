@@ -228,7 +228,7 @@ function Dashboard() {
                       </td>
                       <td className="px-5 py-3.5 whitespace-nowrap text-sm text-right">
                         <Link
-                          to="/inventory"
+                          to={`/inventory?edit=${encodeURIComponent(product._id)}&name=${encodeURIComponent(product.productName)}`}
                           className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl text-xs font-bold transition-colors"
                         >
                           Update Stock
