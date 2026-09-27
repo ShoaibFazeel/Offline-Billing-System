@@ -271,6 +271,7 @@ function Settings() {
           const salesmen = await window.api.getSalesmen()
           const companyInfo = await window.api.getCompanyInfo()
           const credentials = await window.api.getCredentials()
+          const appConfig = await window.api.getAppConfig()
 
           data = {
             products,
@@ -280,6 +281,7 @@ function Settings() {
             salesmen,
             companyInfo,
             credentials,
+            appConfig,
           }
           filename = "billing-system-backup.json"
           break
@@ -324,14 +326,7 @@ function Settings() {
                 return
               }
 
-              if (data.products) await window.api.importProducts(data.products)
-              if (data.clients) await window.api.importClients(data.clients)
-              if (data.bills) await window.api.importBills(data.bills)
-              if (data.fieldOfficers) await window.api.importFieldOfficers(data.fieldOfficers)
-              if (data.salesmen) await window.api.importSalesmen(data.salesmen)
-              if (data.companyInfo) await window.api.updateCompanyInfo(data.companyInfo)
-              if (data.credentials) await window.api.updateCredentials(data.credentials)
-
+              await window.api.importAllData(data)
               toast.success("All data imported successfully")
             } else {
               if (!window.confirm(`This will replace your current ${type} data. Are you sure you want to continue?`)) {
