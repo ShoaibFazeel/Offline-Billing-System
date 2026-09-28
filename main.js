@@ -834,6 +834,60 @@ ipcMain.handle("add-bill", async (event, bill) => {
   return parseBill(queryOne("SELECT * FROM bills WHERE _id = ?", [billToSave._id]))
 })
 
+ipcMain.handle("add-bills", async (event, bills) => {
+  if (!Array.isArray(bills) || bills.length === 0) {
+    throw new Error("No bills provided to save")
+  }
+
+  const savedBills = []
+
+  db.transaction(() => {
+    const row = queryOne("SELECT MAX(CAST(billId AS INTEGER)) as maxId FROM bills WHERE billId IS NOT NULL")
+    let currentMaxId = (row && row.maxId) ? Number(row.maxId) : 0
+
+    for (const rawBill of bills) {
+      const billToSave = JSON.parse(JSON.stringify(rawBill))
+      billToSave.items = ensureItemsHaveIds(billToSave.items || [])
+
+      currentMaxId += 1
+      billToSave.billId = currentMaxId
+      billToSave._id = String(billToSave.billId)
+
+      run(
+        "INSERT OR REPLACE INTO bills(_id,billId,clientId,clientName,clientAddress,fieldOfficerId,salesmanId,billDate,totalAmount,items) VALUES(?,?,?,?,?,?,?,?,?,?)",
+        [
+          billToSave._id,
+          billToSave.billId,
+          billToSave.clientId || "",
+          billToSave.clientName || "",
+          billToSave.clientAddress || "",
+          billToSave.fieldOfficerId || "",
+          billToSave.salesmanId || "",
+          billToSave.billDate ? toIsoDate(billToSave.billDate) : "",
+          Number(billToSave.totalAmount) || 0,
+          JSON.stringify(billToSave.items),
+        ]
+      )
+
+      updateProductQuantities(billToSave.items)
+
+      for (const item of billToSave.items) {
+        if (!item.isBonus && item.productId) {
+          const cpId = queryOne("SELECT _id FROM client_products WHERE clientId=? AND productId=?", [billToSave.clientId, item.productId])
+          run(
+            "INSERT OR REPLACE INTO client_products(_id,clientId,productId,rate,discount,extraDiscount,lastUsed) VALUES(?,?,?,?,?,?,?)",
+            [cpId ? cpId._id : generateId(), billToSave.clientId, item.productId, item.rate || 0, item.discount || 0, item.extraDiscount || 0, toIsoDate(new Date())]
+          )
+        }
+      }
+
+      savedBills.push(parseBill(queryOne("SELECT * FROM bills WHERE _id = ?", [billToSave._id])))
+    }
+  })()
+
+  return savedBills
+})
+
 ipcMain.handle("update-bill", async (event, bill) => {
   const originalBill = parseBill(queryOne("SELECT * FROM bills WHERE _id = ?", [bill._id]))
   if (!originalBill) throw new Error(`Bill ${bill._id} not found`)
