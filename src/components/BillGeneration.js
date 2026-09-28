@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useState, useEffect, useRef } from "react"
+import { Fragment, useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import toast from "react-hot-toast"
 import { useDropdownData } from "../hooks/useLazyData"
@@ -77,6 +77,7 @@ function BillGeneration() {
   const salesmanSearchRef = useRef(null)
   const productSearchRef = useRef(null)
   const bonusProductSearchRefs = useRef({})
+  const addProductButtonRef = useRef(null)
 
   // Refs for dropdown containers
   const clientDropdownRef = useRef(null)
@@ -186,6 +187,8 @@ function BillGeneration() {
   // Add keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
+      const modifierPressed = e.ctrlKey || e.metaKey
+
       // Close modal on Escape
       if (e.key === "Escape" && isProductModalOpen) {
         e.preventDefault()
@@ -193,8 +196,20 @@ function BillGeneration() {
         return
       }
 
+      if (modifierPressed && e.shiftKey && e.key.toLowerCase() === "a" && !isProductModalOpen) {
+        e.preventDefault()
+        openAddProductModal()
+        return
+      }
+
+      if (modifierPressed && e.shiftKey && e.key === "Enter" && isProductModalOpen) {
+        e.preventDefault()
+        closeProductModal()
+        return
+      }
+
       // Cmd+Enter / Ctrl+Enter to add item when modal is open
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      if (modifierPressed && !e.shiftKey && e.key === "Enter") {
         if (isProductModalOpen && currentItem.productId) {
           e.preventDefault()
           addCurrentItemToBill()
@@ -222,7 +237,7 @@ function BillGeneration() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown)
     }
-  }, [currentItem, billItems, isProductModalOpen, editingItemIndex])
+  }, [currentItem, billItems, isProductModalOpen, editingItemIndex, selectedClient])
 
   const handleClientSelect = async (client) => {
     setSelectedClient(client)
@@ -401,6 +416,7 @@ function BillGeneration() {
     setEditingItemIndex(null)
     setProductSearchTerm("")
     setAddedItemsSearchTerm("")
+    setTimeout(() => addProductButtonRef.current?.focus(), 0)
   }
 
   const addCurrentItemToBill = () => {
@@ -707,25 +723,44 @@ function BillGeneration() {
     }))
   }
 
-  const filteredProducts = (searchTerm) => {
-    if (!searchTerm) return products
-    return products.filter((product) =>
-      product.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (product.companyName && product.companyName.toLowerCase().includes(searchTerm.toLowerCase()))
-    )
-  }
+  const getFilteredProducts = useCallback((searchTerm, maxLimit = 50) => {
+    if (!searchTerm || !searchTerm.trim()) return []
+    const term = searchTerm.toLowerCase().trim()
+    const matches = []
+    for (let i = 0; i < products.length; i++) {
+      const product = products[i]
+      if (
+        (product.productName && product.productName.toLowerCase().includes(term)) ||
+        (product.companyName && product.companyName.toLowerCase().includes(term))
+      ) {
+        matches.push(product)
+        if (matches.length >= maxLimit) break
+      }
+    }
+    return matches
+  }, [products])
+
+  const filteredProducts = useCallback((searchTerm) => {
+    return getFilteredProducts(searchTerm, 50)
+  }, [getFilteredProducts])
+
+  const currentFilteredProducts = useMemo(() => {
+    return getFilteredProducts(productSearchTerm, 50)
+  }, [getFilteredProducts, productSearchTerm])
 
   // Filter already added items for the side list in modal
-  const filteredAddedBillItems = addedItemsSearchTerm
-    ? billItems.filter(
+  const filteredAddedBillItems = useMemo(() => {
+    if (!addedItemsSearchTerm) return billItems
+    const term = addedItemsSearchTerm.toLowerCase().trim()
+    return billItems.filter(
       (item) =>
-        item.productName.toLowerCase().includes(addedItemsSearchTerm.toLowerCase()) ||
-        (item.companyName && item.companyName.toLowerCase().includes(addedItemsSearchTerm.toLowerCase())),
+        (item.productName && item.productName.toLowerCase().includes(term)) ||
+        (item.companyName && item.companyName.toLowerCase().includes(term)),
     )
-    : billItems
+  }, [addedItemsSearchTerm, billItems])
 
   const handleProductKeyDown = (e) => {
-    const filtered = filteredProducts(productSearchTerm || "")
+    const filtered = currentFilteredProducts
     if (!showProductDropdown || filtered.length === 0) return
 
     if (e.key === "ArrowDown") {
@@ -1068,29 +1103,56 @@ function BillGeneration() {
     }
   }
 
-  const filteredClients = clientSearchTerm
-    ? clients.filter(
-      (client) =>
-        client.clientName.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
-        client.clientNumber.includes(clientSearchTerm),
-    )
-    : []
+  const filteredClients = useMemo(() => {
+    if (!clientSearchTerm || !clientSearchTerm.trim()) return []
+    const term = clientSearchTerm.toLowerCase().trim()
+    const matches = []
+    for (let i = 0; i < clients.length; i++) {
+      const client = clients[i]
+      if (
+        (client.clientName && client.clientName.toLowerCase().includes(term)) ||
+        (client.clientNumber && client.clientNumber.includes(term))
+      ) {
+        matches.push(client)
+        if (matches.length >= 50) break
+      }
+    }
+    return matches
+  }, [clients, clientSearchTerm])
 
-  const filteredFieldOfficers = fieldOfficerSearchTerm
-    ? fieldOfficers.filter(
-      (officer) =>
-        officer.name.toLowerCase().includes(fieldOfficerSearchTerm.toLowerCase()) ||
-        officer.phoneNumber.includes(fieldOfficerSearchTerm),
-    )
-    : []
+  const filteredFieldOfficers = useMemo(() => {
+    if (!fieldOfficerSearchTerm || !fieldOfficerSearchTerm.trim()) return []
+    const term = fieldOfficerSearchTerm.toLowerCase().trim()
+    const matches = []
+    for (let i = 0; i < fieldOfficers.length; i++) {
+      const officer = fieldOfficers[i]
+      if (
+        (officer.name && officer.name.toLowerCase().includes(term)) ||
+        (officer.phoneNumber && officer.phoneNumber.includes(term))
+      ) {
+        matches.push(officer)
+        if (matches.length >= 50) break
+      }
+    }
+    return matches
+  }, [fieldOfficers, fieldOfficerSearchTerm])
 
-  const filteredSalesmen = salesmanSearchTerm
-    ? salesmen.filter(
-      (salesman) =>
-        salesman.name.toLowerCase().includes(salesmanSearchTerm.toLowerCase()) ||
-        salesman.phoneNumber.includes(salesmanSearchTerm),
-    )
-    : []
+  const filteredSalesmen = useMemo(() => {
+    if (!salesmanSearchTerm || !salesmanSearchTerm.trim()) return []
+    const term = salesmanSearchTerm.toLowerCase().trim()
+    const matches = []
+    for (let i = 0; i < salesmen.length; i++) {
+      const salesman = salesmen[i]
+      if (
+        (salesman.name && salesman.name.toLowerCase().includes(term)) ||
+        (salesman.phoneNumber && salesman.phoneNumber.includes(term))
+      ) {
+        matches.push(salesman)
+        if (matches.length >= 50) break
+      }
+    }
+    return matches
+  }, [salesmen, salesmanSearchTerm])
 
   return (
     <div className="max-w-7xl mx-auto pb-12 px-2 sm:px-4">
@@ -1329,12 +1391,15 @@ function BillGeneration() {
           <button
             type="button"
             onClick={openAddProductModal}
+            ref={addProductButtonRef}
+            title="Add Product to Bill (Ctrl+Shift+A)"
             className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold px-5 py-2.5 rounded-xl shadow-md hover:shadow-lg transition-all transform hover:-translate-y-0.5 active:translate-y-0"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
             </svg>
             Add Product to Bill
+            <kbd className="ml-1 rounded bg-white/15 px-1.5 py-0.5 text-[10px]">Ctrl+Shift+A</kbd>
           </button>
         </div>
 
@@ -1499,12 +1564,14 @@ function BillGeneration() {
         </div>
         <button
           onClick={saveBill}
+          title="Save and print bill (Ctrl+S)"
           className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-green-700 hover:from-emerald-700 hover:to-green-800 text-white font-bold text-base px-8 py-3.5 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 active:translate-y-0"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
           </svg>
           Save & Print Bill
+          <kbd className="rounded bg-white/15 px-1.5 py-0.5 text-[10px]">Ctrl+S</kbd>
         </button>
       </div>
 
@@ -1765,12 +1832,12 @@ function BillGeneration() {
                           </div>
 
                           {/* Search Dropdown Popup */}
-                          {showProductDropdown && productSearchTerm && filteredProducts(productSearchTerm).length > 0 && (
+                          {showProductDropdown && productSearchTerm && currentFilteredProducts.length > 0 && (
                             <div
                               className="absolute z-40 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl max-h-72 overflow-auto product-dropdown-container divide-y divide-gray-100"
                               ref={productDropdownRef}
                             >
-                              {filteredProducts(productSearchTerm).map((product, productIndex) => (
+                              {currentFilteredProducts.map((product, productIndex) => (
                                 <div
                                   key={product._id}
                                   className={`p-3 hover:bg-blue-50 cursor-pointer transition-colors ${productIndex === selectedProductIndex ? "bg-blue-100/80" : ""
@@ -1894,6 +1961,7 @@ function BillGeneration() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
                         {editingItemIndex !== null ? "Update Product in Bill" : "Add Product to Bill"}
+                        <kbd className="rounded bg-white/15 px-1.5 py-0.5 text-[10px]">Ctrl+Enter</kbd>
                       </button>
                     </div>
                   </div>
@@ -2051,6 +2119,12 @@ function BillGeneration() {
                     <kbd className="px-2 py-0.5 bg-white border border-gray-300 rounded text-[11px] font-semibold">Ctrl + Enter</kbd> Add item
                   </span>
                   <span>
+                    <kbd className="px-2 py-0.5 bg-white border border-gray-300 rounded text-[11px] font-semibold">Ctrl + Shift + Enter</kbd> Done
+                  </span>
+                  <span>
+                    <kbd className="px-2 py-0.5 bg-white border border-gray-300 rounded text-[11px] font-semibold">Ctrl + Shift + A</kbd> Add product
+                  </span>
+                  <span>
                     <kbd className="px-2 py-0.5 bg-white border border-gray-300 rounded text-[11px] font-semibold">Ctrl + B</kbd> Bonus item
                   </span>
                   <span>
@@ -2062,7 +2136,7 @@ function BillGeneration() {
                   onClick={closeProductModal}
                   className="text-gray-500 hover:text-gray-800 font-semibold transition-colors"
                 >
-                  Done
+                  Done <kbd className="ml-1 rounded bg-slate-200 px-1.5 py-0.5 text-[10px]">Ctrl+Shift+Enter</kbd>
                 </button>
               </div>
             </div>

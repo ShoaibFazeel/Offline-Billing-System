@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { useLocation } from "react-router-dom"
 import toast from "react-hot-toast"
 import { useLazyData } from "../hooks/useLazyData"
 import dataService from "../services/DataService"
@@ -15,6 +16,7 @@ const emptyProduct = {
 }
 
 function InventoryManagement() {
+  const location = useLocation()
   const {
     data: products,
     loading: productsLoading,
@@ -36,6 +38,10 @@ function InventoryManagement() {
   const productNameInputRef = useRef(null)
   const searchInputRef = useRef(null)
   const formRef = useRef(null)
+  const editRequestRef = useRef(null)
+
+  const editProductId = new URLSearchParams(location.search).get("edit")
+  const editProductName = new URLSearchParams(location.search).get("name")
 
   useEffect(() => {
     searchProducts(searchTerm)
@@ -54,6 +60,21 @@ function InventoryManagement() {
       }, 100)
     }
   }, [isModalOpen])
+
+  useEffect(() => {
+    if (!editProductId || productsLoading || editRequestRef.current === editProductId) return
+
+    const productToEdit = products.find((product) => product._id === editProductId)
+    if (productToEdit) {
+      editRequestRef.current = editProductId
+      handleEdit(productToEdit)
+      return
+    }
+
+    if (editProductName && searchTerm !== editProductName) {
+      setSearchTerm(editProductName)
+    }
+  }, [editProductId, editProductName, products, productsLoading, searchTerm])
 
   const openProductModal = (product = emptyProduct, editing = false) => {
     setCurrentProduct({ ...product })

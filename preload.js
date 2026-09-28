@@ -43,6 +43,7 @@ contextBridge.exposeInMainWorld("api", {
   getBills: (opts) => ipcRenderer.invoke("get-bills", opts),
   getBill: (billId) => ipcRenderer.invoke("get-bill", billId),
   addBill: (bill) => ipcRenderer.invoke("add-bill", bill),
+  addBills: (bills) => ipcRenderer.invoke("add-bills", bills),
   updateBill: (bill) => ipcRenderer.invoke("update-bill", bill),
   deleteBill: (billId) => ipcRenderer.invoke("delete-bill", billId),
   importBills: (bills) => ipcRenderer.invoke("import-bills", bills),
@@ -69,6 +70,8 @@ contextBridge.exposeInMainWorld("api", {
   // Application Configuration
   getAppConfig: () => ipcRenderer.invoke("get-app-config"),
   updateAppConfig: (config) => ipcRenderer.invoke("update-app-config", config),
+  getDataRestoreStatus: () => ipcRenderer.invoke("get-data-restore-status"),
+  importAllData: (data) => ipcRenderer.invoke("import-all-data", data),
 
   // Auto-updates
   checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),

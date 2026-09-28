@@ -2,7 +2,9 @@ const { app, BrowserWindow, ipcMain, dialog, Menu } = require("electron")
 const path = require("path")
 const fs = require("fs")
 const { v4: uuidv4 } = require("uuid")
-const initSqlJs = require("sql.js")
+const Database = require("better-sqlite3")
+const { importAllData: importJsonBackup } = require("./services/JsonBackupImporter.cjs")
+const { openApplicationDatabase } = require("./services/DatabaseBootstrap.cjs")
 const { shell } = require("electron")
 const os = require("os")
 const { autoUpdater } = require("electron-updater")
@@ -10,19 +12,17 @@ const { autoUpdater } = require("electron-updater")
 // ─────────────────────────────────────────────────────────────────
 // Database bootstrap
 // ─────────────────────────────────────────────────────────────────
-let SQL = null   // sql.js module
-let db = null    // in-memory SQLite database
+let db = null
+let restoreRequired = false
 const DB_PATH = () => path.join(app.getPath("userData"), "billing_system.sqlite")
 
-/** Persist the in-memory database to disk after every write */
-function persist() {
-  const data = db.export()
-  fs.writeFileSync(DB_PATH(), Buffer.from(data))
+function run(sql, params = []) {
+  return db.prepare(sql).run(...params)
 }
 
 /** Create all tables and indexes */
 function createSchema() {
-  db.run(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS products (
       _id TEXT PRIMARY KEY,
       productName TEXT NOT NULL,
@@ -135,6 +135,7 @@ function readNedbFile(filePath) {
 /** Auto-migrate existing NeDB files into SQLite */
 function migrateFromNedb() {
   const userData = app.getPath("userData")
+  const filesToArchive = []
   const migrations = [
     { file: "products.db", table: "products", mapper: p => ({
       _id: p._id,
@@ -187,7 +188,6 @@ function migrateFromNedb() {
     })},
   ]
 
-  let migrated = false
   for (const { file, table, mapper } of migrations) {
     const filePath = path.join(userData, file)
     if (!fs.existsSync(filePath)) continue
@@ -201,13 +201,11 @@ function migrateFromNedb() {
       )
       for (const rec of records) {
         const mapped = mapper(rec)
-        stmt.run(Object.values(mapped))
+        stmt.run(...Object.values(mapped))
       }
-      stmt.free()
-      migrated = true
     }
     // Rename to .bak to prevent re-migration
-    fs.renameSync(filePath, filePath + ".bak")
+    filesToArchive.push(filePath)
   }
 
   // Migrate settings
@@ -217,28 +215,29 @@ function migrateFromNedb() {
     for (const rec of records) {
       if (!rec.type) continue
       const { type, ...rest } = rec
-      db.run("INSERT OR IGNORE INTO settings(type, data) VALUES(?, ?)", [type, JSON.stringify(rest)])
+      run("INSERT OR IGNORE INTO settings(type, data) VALUES(?, ?)", [type, JSON.stringify(rest)])
     }
-    fs.renameSync(settingsPath, settingsPath + ".bak")
-    migrated = true
+    filesToArchive.push(settingsPath)
   }
 
-  if (migrated) persist()
+  return filesToArchive
 }
 
-/** Initialize sql.js and load or create the database */
+/** Open the existing SQLite database with durable, disk-backed storage. */
 async function initDatabase() {
-  SQL = await initSqlJs()
   const dbPath = DB_PATH()
-  if (fs.existsSync(dbPath)) {
-    const fileBuffer = fs.readFileSync(dbPath)
-    db = new SQL.Database(fileBuffer)
-  } else {
-    db = new SQL.Database()
-  }
-  createSchema()
-  migrateFromNedb()
-  persist()
+  const opened = await openApplicationDatabase({
+    Database,
+    dbPath,
+    userData: app.getPath("userData"),
+    createSchema: (openedDb) => {
+      db = openedDb
+      createSchema()
+    },
+    migrateFromNedb: () => migrateFromNedb(),
+  })
+  db = opened.db
+  restoreRequired = opened.restoreRequired
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -259,18 +258,12 @@ function ensureItemsHaveIds(items) {
 
 /** Run a SELECT and return rows as plain objects */
 function queryAll(sql, params = []) {
-  const stmt = db.prepare(sql)
-  stmt.bind(params)
-  const rows = []
-  while (stmt.step()) rows.push(stmt.getAsObject())
-  stmt.free()
-  return rows
+  return db.prepare(sql).all(...params)
 }
 
 /** Run a SELECT and return one row */
 function queryOne(sql, params = []) {
-  const rows = queryAll(sql, params)
-  return rows.length > 0 ? rows[0] : null
+  return db.prepare(sql).get(...params) || null
 }
 
 /** Run a paginated SELECT; returns array when limit=0, else { data, total, hasMore, offset, limit } */
@@ -334,7 +327,7 @@ function updateProductQuantities(items, isRefund = false) {
     const p = queryOne("SELECT * FROM products WHERE _id = ?", [productId])
     if (!p || p.hasInfiniteQuantity === 1) continue
     const newQty = isRefund ? Number(p.quantity) + qty : Number(p.quantity) - qty
-    db.run("UPDATE products SET quantity = ? WHERE _id = ?", [Math.max(0, newQty), productId])
+    run("UPDATE products SET quantity = ? WHERE _id = ?", [Math.max(0, newQty), productId])
   }
 }
 
@@ -463,6 +456,10 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit()
 })
 
+app.on("before-quit", () => {
+  if (db && db.open) db.close()
+})
+
 // ─────────────────────────────────────────────────────────────────
 // PRODUCTS
 // ─────────────────────────────────────────────────────────────────
@@ -488,16 +485,15 @@ ipcMain.handle("add-product", async (event, product) => {
     companyName: product.companyName || "",
     containerSize: product.containerSize || "",
   }
-  db.run(
+  run(
     "INSERT INTO products(_id,productName,productPrice,purchasePrice,quantity,hasInfiniteQuantity,companyName,containerSize) VALUES(?,?,?,?,?,?,?,?)",
     [p._id, p.productName, p.productPrice, p.purchasePrice, p.quantity, p.hasInfiniteQuantity, p.companyName, p.containerSize]
   )
-  persist()
   return parseProduct(queryOne("SELECT * FROM products WHERE _id = ?", [p._id]))
 })
 
 ipcMain.handle("update-product", async (event, product) => {
-  db.run(
+  run(
     "UPDATE products SET productName=?,productPrice=?,purchasePrice=?,quantity=?,hasInfiniteQuantity=?,companyName=?,containerSize=? WHERE _id=?",
     [
       product.productName || "",
@@ -510,47 +506,44 @@ ipcMain.handle("update-product", async (event, product) => {
       product._id,
     ]
   )
-  persist()
   return 1
 })
 
 ipcMain.handle("delete-product", async (event, id) => {
-  db.run("DELETE FROM products WHERE _id = ?", [id])
-  persist()
+  run("DELETE FROM products WHERE _id = ?", [id])
   return 1
 })
 
 ipcMain.handle("clear-products", async () => {
-  db.run("DELETE FROM products")
-  persist()
+  run("DELETE FROM products")
   return 1
 })
 
 ipcMain.handle("import-products", async (event, products) => {
-  db.run("DELETE FROM products")
-  for (const product of products) {
-    const p = {
-      _id: product._id || generateId(),
-      productName: product.productName || "",
-      productPrice: Number(product.productPrice) || 0,
-      purchasePrice: Number(product.purchasePrice != null ? product.purchasePrice : product.productPrice) || 0,
-      quantity: Number(product.quantity) || 0,
-      hasInfiniteQuantity: product.hasInfiniteQuantity === false ? 0 : 1,
-      companyName: product.companyName || "",
-      containerSize: product.containerSize || "",
+  db.transaction(() => {
+    run("DELETE FROM products")
+    for (const product of products) {
+      const p = {
+        _id: product._id || generateId(),
+        productName: product.productName || "",
+        productPrice: Number(product.productPrice) || 0,
+        purchasePrice: Number(product.purchasePrice != null ? product.purchasePrice : product.productPrice) || 0,
+        quantity: Number(product.quantity) || 0,
+        hasInfiniteQuantity: product.hasInfiniteQuantity === false ? 0 : 1,
+        companyName: product.companyName || "",
+        containerSize: product.containerSize || "",
+      }
+      run(
+        "INSERT OR REPLACE INTO products(_id,productName,productPrice,purchasePrice,quantity,hasInfiniteQuantity,companyName,containerSize) VALUES(?,?,?,?,?,?,?,?)",
+        [p._id, p.productName, p.productPrice, p.purchasePrice, p.quantity, p.hasInfiniteQuantity, p.companyName, p.containerSize]
+      )
     }
-    db.run(
-      "INSERT OR REPLACE INTO products(_id,productName,productPrice,purchasePrice,quantity,hasInfiniteQuantity,companyName,containerSize) VALUES(?,?,?,?,?,?,?,?)",
-      [p._id, p.productName, p.productPrice, p.purchasePrice, p.quantity, p.hasInfiniteQuantity, p.companyName, p.containerSize]
-    )
-  }
-  persist()
+  })()
   return products.length
 })
 
 ipcMain.handle("update-existing-products-purchase-price", async () => {
-  db.run("UPDATE products SET purchasePrice = productPrice WHERE purchasePrice IS NULL OR purchasePrice = 0")
-  persist()
+  run("UPDATE products SET purchasePrice = productPrice WHERE purchasePrice IS NULL OR purchasePrice = 0")
   return { updated: 1 }
 })
 
@@ -581,52 +574,49 @@ ipcMain.handle("add-client", async (event, client) => {
     isFiler: client.isFiler ? 1 : 0,
     ntnNumber: client.ntnNumber || "",
   }
-  db.run(
+  run(
     "INSERT INTO clients(_id,clientName,clientNumber,clientAddress,isFiler,ntnNumber) VALUES(?,?,?,?,?,?)",
     [c._id, c.clientName, c.clientNumber, c.clientAddress, c.isFiler, c.ntnNumber]
   )
-  persist()
   return parseClient(queryOne("SELECT * FROM clients WHERE _id = ?", [c._id]))
 })
 
 ipcMain.handle("update-client", async (event, client) => {
-  db.run(
+  run(
     "UPDATE clients SET clientName=?,clientNumber=?,clientAddress=?,isFiler=?,ntnNumber=? WHERE _id=?",
     [client.clientName || "", client.clientNumber || "", client.clientAddress || "", client.isFiler ? 1 : 0, client.ntnNumber || "", client._id]
   )
-  persist()
   return 1
 })
 
 ipcMain.handle("delete-client", async (event, id) => {
-  db.run("DELETE FROM clients WHERE _id = ?", [id])
-  persist()
+  run("DELETE FROM clients WHERE _id = ?", [id])
   return 1
 })
 
 ipcMain.handle("clear-clients", async () => {
-  db.run("DELETE FROM clients")
-  persist()
+  run("DELETE FROM clients")
   return 1
 })
 
 ipcMain.handle("import-clients", async (event, clients) => {
-  db.run("DELETE FROM clients")
-  for (const client of clients) {
-    const c = {
-      _id: client._id || generateId(),
-      clientName: client.clientName || "",
-      clientNumber: client.clientNumber || "",
-      clientAddress: client.clientAddress || "",
-      isFiler: client.isFiler ? 1 : 0,
-      ntnNumber: client.ntnNumber || "",
+  db.transaction(() => {
+    run("DELETE FROM clients")
+    for (const client of clients) {
+      const c = {
+        _id: client._id || generateId(),
+        clientName: client.clientName || "",
+        clientNumber: client.clientNumber || "",
+        clientAddress: client.clientAddress || "",
+        isFiler: client.isFiler ? 1 : 0,
+        ntnNumber: client.ntnNumber || "",
+      }
+      run(
+        "INSERT OR REPLACE INTO clients(_id,clientName,clientNumber,clientAddress,isFiler,ntnNumber) VALUES(?,?,?,?,?,?)",
+        [c._id, c.clientName, c.clientNumber, c.clientAddress, c.isFiler, c.ntnNumber]
+      )
     }
-    db.run(
-      "INSERT OR REPLACE INTO clients(_id,clientName,clientNumber,clientAddress,isFiler,ntnNumber) VALUES(?,?,?,?,?,?)",
-      [c._id, c.clientName, c.clientNumber, c.clientAddress, c.isFiler, c.ntnNumber]
-    )
-  }
-  persist()
+  })()
   return clients.length
 })
 
@@ -650,36 +640,33 @@ ipcMain.handle("get-field-officer", async (event, id) => {
 
 ipcMain.handle("add-field-officer", async (event, fo) => {
   const f = { _id: fo._id || generateId(), name: fo.name || "", phoneNumber: fo.phoneNumber || "" }
-  db.run("INSERT INTO field_officers(_id,name,phoneNumber) VALUES(?,?,?)", [f._id, f.name, f.phoneNumber])
-  persist()
+  run("INSERT INTO field_officers(_id,name,phoneNumber) VALUES(?,?,?)", [f._id, f.name, f.phoneNumber])
   return queryOne("SELECT * FROM field_officers WHERE _id = ?", [f._id])
 })
 
 ipcMain.handle("update-field-officer", async (event, fo) => {
-  db.run("UPDATE field_officers SET name=?,phoneNumber=? WHERE _id=?", [fo.name || "", fo.phoneNumber || "", fo._id])
-  persist()
+  run("UPDATE field_officers SET name=?,phoneNumber=? WHERE _id=?", [fo.name || "", fo.phoneNumber || "", fo._id])
   return 1
 })
 
 ipcMain.handle("delete-field-officer", async (event, id) => {
-  db.run("DELETE FROM field_officers WHERE _id = ?", [id])
-  persist()
+  run("DELETE FROM field_officers WHERE _id = ?", [id])
   return 1
 })
 
 ipcMain.handle("clear-field-officers", async () => {
-  db.run("DELETE FROM field_officers")
-  persist()
+  run("DELETE FROM field_officers")
   return 1
 })
 
 ipcMain.handle("import-field-officers", async (event, fieldOfficers) => {
-  db.run("DELETE FROM field_officers")
-  for (const fo of fieldOfficers) {
-    db.run("INSERT OR REPLACE INTO field_officers(_id,name,phoneNumber) VALUES(?,?,?)",
-      [fo._id || generateId(), fo.name || "", fo.phoneNumber || ""])
-  }
-  persist()
+  db.transaction(() => {
+    run("DELETE FROM field_officers")
+    for (const fo of fieldOfficers) {
+      run("INSERT OR REPLACE INTO field_officers(_id,name,phoneNumber) VALUES(?,?,?)",
+        [fo._id || generateId(), fo.name || "", fo.phoneNumber || ""])
+    }
+  })()
   return fieldOfficers.length
 })
 
@@ -703,36 +690,33 @@ ipcMain.handle("get-salesman", async (event, id) => {
 
 ipcMain.handle("add-salesman", async (event, s) => {
   const sm = { _id: s._id || generateId(), name: s.name || "", phoneNumber: s.phoneNumber || "" }
-  db.run("INSERT INTO salesmen(_id,name,phoneNumber) VALUES(?,?,?)", [sm._id, sm.name, sm.phoneNumber])
-  persist()
+  run("INSERT INTO salesmen(_id,name,phoneNumber) VALUES(?,?,?)", [sm._id, sm.name, sm.phoneNumber])
   return queryOne("SELECT * FROM salesmen WHERE _id = ?", [sm._id])
 })
 
 ipcMain.handle("update-salesman", async (event, s) => {
-  db.run("UPDATE salesmen SET name=?,phoneNumber=? WHERE _id=?", [s.name || "", s.phoneNumber || "", s._id])
-  persist()
+  run("UPDATE salesmen SET name=?,phoneNumber=? WHERE _id=?", [s.name || "", s.phoneNumber || "", s._id])
   return 1
 })
 
 ipcMain.handle("delete-salesman", async (event, id) => {
-  db.run("DELETE FROM salesmen WHERE _id = ?", [id])
-  persist()
+  run("DELETE FROM salesmen WHERE _id = ?", [id])
   return 1
 })
 
 ipcMain.handle("clear-salesmen", async () => {
-  db.run("DELETE FROM salesmen")
-  persist()
+  run("DELETE FROM salesmen")
   return 1
 })
 
 ipcMain.handle("import-salesmen", async (event, salesmen) => {
-  db.run("DELETE FROM salesmen")
-  for (const s of salesmen) {
-    db.run("INSERT OR REPLACE INTO salesmen(_id,name,phoneNumber) VALUES(?,?,?)",
-      [s._id || generateId(), s.name || "", s.phoneNumber || ""])
-  }
-  persist()
+  db.transaction(() => {
+    run("DELETE FROM salesmen")
+    for (const s of salesmen) {
+      run("INSERT OR REPLACE INTO salesmen(_id,name,phoneNumber) VALUES(?,?,?)",
+        [s._id || generateId(), s.name || "", s.phoneNumber || ""])
+    }
+  })()
   return salesmen.length
 })
 
@@ -763,7 +747,7 @@ ipcMain.handle("get-bills", async (event, opts = {}) => {
 
   const fromWhere = `FROM bills${whereClauses.length ? ` WHERE ${whereClauses.join(" AND ")}` : ""}`
 
-  return queryPaginated({
+  const paginatedResult = queryPaginated({
     fromWhere,
     params,
     orderBy: "billDate DESC, CAST(billId AS INTEGER) DESC",
@@ -771,6 +755,13 @@ ipcMain.handle("get-bills", async (event, opts = {}) => {
     offset,
     parseRow: parseBill,
   })
+  const totalAmountRow = queryOne(`SELECT COALESCE(SUM(totalAmount), 0) as totalAmount ${fromWhere}`, params)
+  if (Array.isArray(paginatedResult)) return paginatedResult
+
+  return {
+    ...paginatedResult,
+    totalAmount: Number(totalAmountRow?.totalAmount || 0),
+  }
 })
 
 ipcMain.handle("get-low-stock-products", async (event, opts = {}) => {
@@ -805,41 +796,96 @@ ipcMain.handle("add-bill", async (event, bill) => {
   const billToSave = JSON.parse(JSON.stringify(bill))
   billToSave.items = ensureItemsHaveIds(billToSave.items || [])
 
-  if (!billToSave.billId) {
-    const row = queryOne("SELECT MAX(CAST(billId AS INTEGER)) as maxId FROM bills WHERE billId IS NOT NULL")
-    billToSave.billId = (row && row.maxId) ? Number(row.maxId) + 1 : 1
-  }
-  billToSave._id = String(billToSave.billId)
-
-  db.run(
-    "INSERT OR REPLACE INTO bills(_id,billId,clientId,clientName,clientAddress,fieldOfficerId,salesmanId,billDate,totalAmount,items) VALUES(?,?,?,?,?,?,?,?,?,?)",
-    [
-      billToSave._id,
-      billToSave.billId,
-      billToSave.clientId || "",
-      billToSave.clientName || "",
-      billToSave.clientAddress || "",
-      billToSave.fieldOfficerId || "",
-      billToSave.salesmanId || "",
-      billToSave.billDate ? toIsoDate(billToSave.billDate) : "",
-      Number(billToSave.totalAmount) || 0,
-      JSON.stringify(billToSave.items),
-    ]
-  )
-
-  updateProductQuantities(billToSave.items)
-
-  for (const item of billToSave.items) {
-    if (!item.isBonus && item.productId) {
-      const cpId = queryOne("SELECT _id FROM client_products WHERE clientId=? AND productId=?", [billToSave.clientId, item.productId])
-      db.run(
-        "INSERT OR REPLACE INTO client_products(_id,clientId,productId,rate,discount,extraDiscount,lastUsed) VALUES(?,?,?,?,?,?,?)",
-        [cpId ? cpId._id : generateId(), billToSave.clientId, item.productId, item.rate || 0, item.discount || 0, item.extraDiscount || 0, toIsoDate(new Date())]
-      )
+  db.transaction(() => {
+    if (!billToSave.billId) {
+      const row = queryOne("SELECT MAX(CAST(billId AS INTEGER)) as maxId FROM bills WHERE billId IS NOT NULL")
+      billToSave.billId = (row && row.maxId) ? Number(row.maxId) + 1 : 1
     }
-  }
-  persist()
+    billToSave._id = String(billToSave.billId)
+
+    run(
+      "INSERT OR REPLACE INTO bills(_id,billId,clientId,clientName,clientAddress,fieldOfficerId,salesmanId,billDate,totalAmount,items) VALUES(?,?,?,?,?,?,?,?,?,?)",
+      [
+        billToSave._id,
+        billToSave.billId,
+        billToSave.clientId || "",
+        billToSave.clientName || "",
+        billToSave.clientAddress || "",
+        billToSave.fieldOfficerId || "",
+        billToSave.salesmanId || "",
+        billToSave.billDate ? toIsoDate(billToSave.billDate) : "",
+        Number(billToSave.totalAmount) || 0,
+        JSON.stringify(billToSave.items),
+      ]
+    )
+
+    updateProductQuantities(billToSave.items)
+
+    for (const item of billToSave.items) {
+      if (!item.isBonus && item.productId) {
+        const cpId = queryOne("SELECT _id FROM client_products WHERE clientId=? AND productId=?", [billToSave.clientId, item.productId])
+        run(
+          "INSERT OR REPLACE INTO client_products(_id,clientId,productId,rate,discount,extraDiscount,lastUsed) VALUES(?,?,?,?,?,?,?)",
+          [cpId ? cpId._id : generateId(), billToSave.clientId, item.productId, item.rate || 0, item.discount || 0, item.extraDiscount || 0, toIsoDate(new Date())]
+        )
+      }
+    }
+  })()
   return parseBill(queryOne("SELECT * FROM bills WHERE _id = ?", [billToSave._id]))
+})
+
+ipcMain.handle("add-bills", async (event, bills) => {
+  if (!Array.isArray(bills) || bills.length === 0) {
+    throw new Error("No bills provided to save")
+  }
+
+  const savedBills = []
+
+  db.transaction(() => {
+    const row = queryOne("SELECT MAX(CAST(billId AS INTEGER)) as maxId FROM bills WHERE billId IS NOT NULL")
+    let currentMaxId = (row && row.maxId) ? Number(row.maxId) : 0
+
+    for (const rawBill of bills) {
+      const billToSave = JSON.parse(JSON.stringify(rawBill))
+      billToSave.items = ensureItemsHaveIds(billToSave.items || [])
+
+      currentMaxId += 1
+      billToSave.billId = currentMaxId
+      billToSave._id = String(billToSave.billId)
+
+      run(
+        "INSERT OR REPLACE INTO bills(_id,billId,clientId,clientName,clientAddress,fieldOfficerId,salesmanId,billDate,totalAmount,items) VALUES(?,?,?,?,?,?,?,?,?,?)",
+        [
+          billToSave._id,
+          billToSave.billId,
+          billToSave.clientId || "",
+          billToSave.clientName || "",
+          billToSave.clientAddress || "",
+          billToSave.fieldOfficerId || "",
+          billToSave.salesmanId || "",
+          billToSave.billDate ? toIsoDate(billToSave.billDate) : "",
+          Number(billToSave.totalAmount) || 0,
+          JSON.stringify(billToSave.items),
+        ]
+      )
+
+      updateProductQuantities(billToSave.items)
+
+      for (const item of billToSave.items) {
+        if (!item.isBonus && item.productId) {
+          const cpId = queryOne("SELECT _id FROM client_products WHERE clientId=? AND productId=?", [billToSave.clientId, item.productId])
+          run(
+            "INSERT OR REPLACE INTO client_products(_id,clientId,productId,rate,discount,extraDiscount,lastUsed) VALUES(?,?,?,?,?,?,?)",
+            [cpId ? cpId._id : generateId(), billToSave.clientId, item.productId, item.rate || 0, item.discount || 0, item.extraDiscount || 0, toIsoDate(new Date())]
+          )
+        }
+      }
+
+      savedBills.push(parseBill(queryOne("SELECT * FROM bills WHERE _id = ?", [billToSave._id])))
+    }
+  })()
+
+  return savedBills
 })
 
 ipcMain.handle("update-bill", async (event, bill) => {
@@ -849,75 +895,77 @@ ipcMain.handle("update-bill", async (event, bill) => {
   const billToSave = JSON.parse(JSON.stringify(bill))
   billToSave.items = ensureItemsHaveIds(billToSave.items || [])
 
-  updateProductQuantities(originalBill.items, true)
-  updateProductQuantities(billToSave.items)
+  db.transaction(() => {
+    updateProductQuantities(originalBill.items, true)
+    updateProductQuantities(billToSave.items)
 
-  db.run(
-    "UPDATE bills SET clientId=?,clientName=?,clientAddress=?,fieldOfficerId=?,salesmanId=?,billDate=?,totalAmount=?,items=? WHERE _id=?",
-    [
-      billToSave.clientId || "",
-      billToSave.clientName || "",
-      billToSave.clientAddress || "",
-      billToSave.fieldOfficerId || "",
-      billToSave.salesmanId || "",
-      billToSave.billDate ? toIsoDate(billToSave.billDate) : "",
-      Number(billToSave.totalAmount) || 0,
-      JSON.stringify(billToSave.items),
-      billToSave._id,
-    ]
-  )
+    run(
+      "UPDATE bills SET clientId=?,clientName=?,clientAddress=?,fieldOfficerId=?,salesmanId=?,billDate=?,totalAmount=?,items=? WHERE _id=?",
+      [
+        billToSave.clientId || "",
+        billToSave.clientName || "",
+        billToSave.clientAddress || "",
+        billToSave.fieldOfficerId || "",
+        billToSave.salesmanId || "",
+        billToSave.billDate ? toIsoDate(billToSave.billDate) : "",
+        Number(billToSave.totalAmount) || 0,
+        JSON.stringify(billToSave.items),
+        billToSave._id,
+      ]
+    )
 
-  for (const item of billToSave.items) {
-    if (!item.isBonus && item.productId) {
-      const cpId = queryOne("SELECT _id FROM client_products WHERE clientId=? AND productId=?", [billToSave.clientId, item.productId])
-      db.run(
-        "INSERT OR REPLACE INTO client_products(_id,clientId,productId,rate,discount,extraDiscount,lastUsed) VALUES(?,?,?,?,?,?,?)",
-        [cpId ? cpId._id : generateId(), billToSave.clientId, item.productId, item.rate || 0, item.discount || 0, item.extraDiscount || 0, toIsoDate(new Date())]
-      )
+    for (const item of billToSave.items) {
+      if (!item.isBonus && item.productId) {
+        const cpId = queryOne("SELECT _id FROM client_products WHERE clientId=? AND productId=?", [billToSave.clientId, item.productId])
+        run(
+          "INSERT OR REPLACE INTO client_products(_id,clientId,productId,rate,discount,extraDiscount,lastUsed) VALUES(?,?,?,?,?,?,?)",
+          [cpId ? cpId._id : generateId(), billToSave.clientId, item.productId, item.rate || 0, item.discount || 0, item.extraDiscount || 0, toIsoDate(new Date())]
+        )
+      }
     }
-  }
-  persist()
+  })()
   return 1
 })
 
 ipcMain.handle("delete-bill", async (event, billId) => {
-  const bill = parseBill(queryOne("SELECT * FROM bills WHERE _id = ?", [billId]))
-  if (!bill) throw new Error("Bill not found")
-  if (bill.items && bill.items.length > 0) {
-    updateProductQuantities(bill.items, true)
-  }
-  db.run("DELETE FROM bills WHERE _id = ?", [billId])
-  persist()
+  db.transaction(() => {
+    const bill = parseBill(queryOne("SELECT * FROM bills WHERE _id = ?", [billId]))
+    if (!bill) throw new Error("Bill not found")
+    if (bill.items && bill.items.length > 0) {
+      updateProductQuantities(bill.items, true)
+    }
+    run("DELETE FROM bills WHERE _id = ?", [billId])
+  })()
   return { success: true, message: "Bill deleted successfully" }
 })
 
 ipcMain.handle("clear-bills", async () => {
-  db.run("DELETE FROM bills")
-  persist()
+  run("DELETE FROM bills")
   return 1
 })
 
 ipcMain.handle("import-bills", async (event, bills) => {
-  db.run("DELETE FROM bills")
-  for (const bill of bills) {
-    const b = {
-      _id: bill._id || generateId(),
-      billId: bill.billId || null,
-      clientId: bill.clientId || "",
-      clientName: bill.clientName || "",
-      clientAddress: bill.clientAddress || "",
-      fieldOfficerId: bill.fieldOfficerId || "",
-      salesmanId: bill.salesmanId || "",
-      billDate: toIsoDate(bill.billDate),
-      totalAmount: Number(bill.totalAmount) || 0,
-      items: JSON.stringify(ensureItemsHaveIds(bill.items || [])),
+  db.transaction(() => {
+    run("DELETE FROM bills")
+    for (const bill of bills) {
+      const b = {
+        _id: bill._id || generateId(),
+        billId: bill.billId || null,
+        clientId: bill.clientId || "",
+        clientName: bill.clientName || "",
+        clientAddress: bill.clientAddress || "",
+        fieldOfficerId: bill.fieldOfficerId || "",
+        salesmanId: bill.salesmanId || "",
+        billDate: toIsoDate(bill.billDate),
+        totalAmount: Number(bill.totalAmount) || 0,
+        items: JSON.stringify(ensureItemsHaveIds(bill.items || [])),
+      }
+      run(
+        "INSERT OR REPLACE INTO bills(_id,billId,clientId,clientName,clientAddress,fieldOfficerId,salesmanId,billDate,totalAmount,items) VALUES(?,?,?,?,?,?,?,?,?,?)",
+        [b._id, b.billId, b.clientId, b.clientName, b.clientAddress, b.fieldOfficerId, b.salesmanId, b.billDate, b.totalAmount, b.items]
+      )
     }
-    db.run(
-      "INSERT OR REPLACE INTO bills(_id,billId,clientId,clientName,clientAddress,fieldOfficerId,salesmanId,billDate,totalAmount,items) VALUES(?,?,?,?,?,?,?,?,?,?)",
-      [b._id, b.billId, b.clientId, b.clientName, b.clientAddress, b.fieldOfficerId, b.salesmanId, b.billDate, b.totalAmount, b.items]
-    )
-  }
-  persist()
+  })()
   return bills.length
 })
 
@@ -940,8 +988,7 @@ ipcMain.handle("get-credentials", async () => {
 })
 
 ipcMain.handle("update-credentials", async (event, credentials) => {
-  db.run("INSERT OR REPLACE INTO settings(type,data) VALUES('credentials',?)", [JSON.stringify(credentials)])
-  persist()
+  run("INSERT OR REPLACE INTO settings(type,data) VALUES('credentials',?)", [JSON.stringify(credentials)])
   return 1
 })
 
@@ -952,8 +999,7 @@ ipcMain.handle("get-company-info", async () => {
 })
 
 ipcMain.handle("update-company-info", async (event, companyInfo) => {
-  db.run("INSERT OR REPLACE INTO settings(type,data) VALUES('company-info',?)", [JSON.stringify(companyInfo)])
-  persist()
+  run("INSERT OR REPLACE INTO settings(type,data) VALUES('company-info',?)", [JSON.stringify(companyInfo)])
   return 1
 })
 
@@ -970,9 +1016,20 @@ ipcMain.handle("get-app-config", async () => {
   }
 })
 
+ipcMain.handle("get-data-restore-status", async () => ({ required: restoreRequired }))
+
+ipcMain.handle("import-all-data", async (event, data) => {
+  importJsonBackup(db, data, { generateId, ensureItemsHaveIds, toIsoDate })
+
+  if (restoreRequired) {
+    fs.rmSync(RESTORE_MARKER_PATH(), { force: true })
+    restoreRequired = false
+  }
+  return { success: true }
+})
+
 ipcMain.handle("update-app-config", async (event, appConfig) => {
-  db.run("INSERT OR REPLACE INTO settings(type,data) VALUES('app-config',?)", [JSON.stringify(appConfig)])
-  persist()
+  run("INSERT OR REPLACE INTO settings(type,data) VALUES('app-config',?)", [JSON.stringify(appConfig)])
   return 1
 })
 
@@ -992,7 +1049,7 @@ ipcMain.handle("check-for-updates", async () => {
 
 ipcMain.handle("install-update", async () => {
   try {
-    autoUpdater.quitAndInstall(false, true)
+    autoUpdater.quitAndInstall(true, true)
     return true
   } catch (error) {
     console.error("Error installing update:", error)

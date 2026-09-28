@@ -9,6 +9,11 @@ import dataService from "../services/DataService"
 import storageService from "../services/StorageService"
 
 function BillHistory() {
+  const [dateFilter, setDateFilter] = useState(() => ({
+    from: storageService.getLocalItem("billHistoryDateFrom") || "",
+    to: storageService.getLocalItem("billHistoryDateTo") || "",
+  }))
+
   const {
     data: bills,
     loading: billsLoading,
@@ -18,13 +23,13 @@ function BillHistory() {
     loadMore,
     hasMore,
     total,
-  } = useLazyData("bills", "", 50)
+    totalAmount,
+  } = useLazyData("bills", "", 50, {
+    fromDate: dateFilter.from,
+    toDate: dateFilter.to,
+  })
 
   const [searchTerm, setSearchTerm] = useState(() => storageService.getLocalItem("billHistorySearchTerm") || "")
-  const [dateFilter, setDateFilter] = useState(() => ({
-    from: storageService.getLocalItem("billHistoryDateFrom") || "",
-    to: storageService.getLocalItem("billHistoryDateTo") || "",
-  }))
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
   const searchInputRef = useRef(null)
@@ -91,26 +96,7 @@ function BillHistory() {
   }
 
   const filteredBills = useMemo(() => {
-    const matched = bills.filter((bill) => {
-      const clientName = bill.clientName || ""
-      const billId = bill.billId ? String(bill.billId) : bill._id || ""
-      const matchesSearch =
-        clientName.toLowerCase().includes(normalizedSearchTerm) ||
-        billId.toLowerCase().includes(normalizedSearchTerm)
-
-      const billDateStr = bill.billDate ? configService.formatIsoDate(bill.billDate) : ""
-      let matchesDateRange = true
-      if (dateFilter.from) {
-        matchesDateRange = matchesDateRange && billDateStr >= dateFilter.from
-      }
-      if (dateFilter.to) {
-        matchesDateRange = matchesDateRange && billDateStr <= dateFilter.to
-      }
-
-      return matchesSearch && matchesDateRange
-    })
-
-    return matched.sort((a, b) => {
+    return [...bills].sort((a, b) => {
       const aInvoice = a.billId ? String(a.billId) : a._id || ""
       const bInvoice = b.billId ? String(b.billId) : b._id || ""
 
@@ -124,12 +110,9 @@ function BillHistory() {
 
       return bInvoice.localeCompare(aInvoice, undefined, { numeric: true, sensitivity: "base" })
     })
-  }, [bills, normalizedSearchTerm, dateFilter])
+  }, [bills])
 
-  const grandTotal = useMemo(
-    () => filteredBills.reduce((total, bill) => total + Number(bill.totalAmount || 0), 0),
-    [filteredBills],
-  )
+  const grandTotal = Number(totalAmount || 0)
 
   return (
     <div className="max-w-7xl mx-auto pb-12 px-2 sm:px-4">

@@ -307,7 +307,7 @@ const SearchBar = ({
                     <div className="font-semibold text-gray-900 truncate">{mainText}</div>
 
                     {/* Rich Subtitles */}
-                    {(item.companyName || item.containerSize || item.companiesCount !== undefined) && (
+                    {(item.companyName || item.containerSize || item.quantity !== undefined || item.companiesCount !== undefined) && (
                       <div className="text-xs text-gray-500 mt-0.5 flex flex-wrap items-center gap-2">
                         {item.companyName && (
                           <span className="inline-flex items-center gap-1 text-blue-600 font-medium">
@@ -317,6 +317,11 @@ const SearchBar = ({
                         {item.containerSize && (
                           <span className="inline-flex items-center gap-1 text-gray-500">
                             📦 {item.containerSize}
+                          </span>
+                        )}
+                        {item.quantity !== undefined && (
+                          <span className="inline-flex items-center gap-1 text-gray-500">
+                            🔢 Qty: {item.hasInfiniteQuantity === false ? item.quantity : "Unlimited"}
                           </span>
                         )}
                         {item.companiesCount !== undefined && (
