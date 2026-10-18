@@ -13,7 +13,6 @@ const { autoUpdater } = require("electron-updater")
 // Database bootstrap
 // ─────────────────────────────────────────────────────────────────
 let db = null
-let restoreRequired = false
 const DB_PATH = () => path.join(app.getPath("userData"), "billing_system.sqlite")
 
 function run(sql, params = []) {
@@ -100,144 +99,18 @@ function toIsoDate(value) {
   return date.toISOString()
 }
 
-function addDaysToDateString(dateString, days = 0) {
-  if (!dateString) return dateString
-  const [year, month, day] = dateString.split("-").map(Number)
-  if (!year || !month || !day) return dateString
-  const date = new Date(Date.UTC(year, month - 1, day))
-  date.setUTCDate(date.getUTCDate() + days)
-  return date.toISOString().slice(0, 10)
-}
-
-function addOneDayToDateString(dateString) {
-  return addDaysToDateString(dateString, 1)
-}
-
-/** Read lines from a NeDB flat file and return parsed objects */
-function readNedbFile(filePath) {
-  if (!fs.existsSync(filePath)) return []
-  const lines = fs.readFileSync(filePath, "utf8").split("\n").filter(Boolean)
-  const records = {}
-  for (const line of lines) {
-    try {
-      const obj = JSON.parse(line)
-      if (obj._id) {
-        records[obj._id] = obj  // Last occurrence wins (NeDB append-only logic)
-      }
-    } catch (_) {
-      // Skip malformed lines
-    }
-  }
-  // Filter out tombstone records ($$deleted)
-  return Object.values(records).filter(r => !r.$$deleted)
-}
-
-/** Auto-migrate existing NeDB files into SQLite */
-function migrateFromNedb() {
-  const userData = app.getPath("userData")
-  const filesToArchive = []
-  const migrations = [
-    { file: "products.db", table: "products", mapper: p => ({
-      _id: p._id,
-      productName: p.productName || "",
-      productPrice: p.productPrice || 0,
-      purchasePrice: p.purchasePrice || p.productPrice || 0,
-      quantity: p.quantity || 0,
-      hasInfiniteQuantity: p.hasInfiniteQuantity === false ? 0 : 1,
-      companyName: p.companyName || "",
-      containerSize: p.containerSize || "",
-    })},
-    { file: "clients.db", table: "clients", mapper: c => ({
-      _id: c._id,
-      clientName: c.clientName || "",
-      clientNumber: c.clientNumber || "",
-      clientAddress: c.clientAddress || "",
-      isFiler: c.isFiler ? 1 : 0,
-      ntnNumber: c.ntnNumber || "",
-    })},
-    { file: "fieldOfficers.db", table: "field_officers", mapper: f => ({
-      _id: f._id,
-      name: f.name || "",
-      phoneNumber: f.phoneNumber || "",
-    })},
-    { file: "salesmen.db", table: "salesmen", mapper: s => ({
-      _id: s._id,
-      name: s.name || "",
-      phoneNumber: s.phoneNumber || "",
-    })},
-    { file: "bills.db", table: "bills", mapper: b => ({
-      _id: b._id,
-      billId: b.billId || null,
-      clientId: b.clientId || "",
-      clientName: b.clientName || "",
-      clientAddress: b.clientAddress || "",
-      fieldOfficerId: b.fieldOfficerId || "",
-      salesmanId: b.salesmanId || "",
-      billDate: toIsoDate(b.billDate),
-      totalAmount: b.totalAmount || 0,
-      items: JSON.stringify(b.items || []),
-    })},
-    { file: "clientProducts.db", table: "client_products", mapper: cp => ({
-      _id: cp._id,
-      clientId: cp.clientId || "",
-      productId: cp.productId || "",
-      rate: cp.rate || 0,
-      discount: cp.discount || 0,
-      extraDiscount: cp.extraDiscount || 0,
-      lastUsed: toIsoDate(cp.lastUsed),
-    })},
-  ]
-
-  for (const { file, table, mapper } of migrations) {
-    const filePath = path.join(userData, file)
-    if (!fs.existsSync(filePath)) continue
-    const records = readNedbFile(filePath)
-    if (records.length > 0) {
-      const first = mapper(records[0])
-      const cols = Object.keys(first)
-      const placeholders = cols.map(() => "?").join(", ")
-      const stmt = db.prepare(
-        `INSERT OR IGNORE INTO ${table} (${cols.join(", ")}) VALUES (${placeholders})`
-      )
-      for (const rec of records) {
-        const mapped = mapper(rec)
-        stmt.run(...Object.values(mapped))
-      }
-    }
-    // Rename to .bak to prevent re-migration
-    filesToArchive.push(filePath)
-  }
-
-  // Migrate settings
-  const settingsPath = path.join(userData, "settings.db")
-  if (fs.existsSync(settingsPath)) {
-    const records = readNedbFile(settingsPath)
-    for (const rec of records) {
-      if (!rec.type) continue
-      const { type, ...rest } = rec
-      run("INSERT OR IGNORE INTO settings(type, data) VALUES(?, ?)", [type, JSON.stringify(rest)])
-    }
-    filesToArchive.push(settingsPath)
-  }
-
-  return filesToArchive
-}
-
 /** Open the existing SQLite database with durable, disk-backed storage. */
 async function initDatabase() {
   const dbPath = DB_PATH()
   const opened = await openApplicationDatabase({
     Database,
     dbPath,
-    userData: app.getPath("userData"),
     createSchema: (openedDb) => {
       db = openedDb
       createSchema()
     },
-    migrateFromNedb: () => migrateFromNedb(),
   })
   db = opened.db
-  restoreRequired = opened.restoreRequired
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -734,15 +607,13 @@ ipcMain.handle("get-bills", async (event, opts = {}) => {
   }
 
   if (fromDate) {
-    const fromBuf = addDaysToDateString(fromDate, -1)
-    whereClauses.push("(DATE(billDate) >= ? OR DATE(billDate, 'localtime') >= ? OR billDate >= ?)")
-    params.push(fromBuf, fromBuf, fromBuf)
+    whereClauses.push("DATE(billDate) >= ?")
+    params.push(fromDate)
   }
 
   if (toDate) {
-    const toBuf = addDaysToDateString(toDate, 1)
-    whereClauses.push("(DATE(billDate) <= ? OR DATE(billDate, 'localtime') <= ? OR billDate <= ?)")
-    params.push(toBuf, toBuf, `${toBuf}T23:59:59.999Z`)
+    whereClauses.push("DATE(billDate) <= ?")
+    params.push(toDate)
   }
 
   const fromWhere = `FROM bills${whereClauses.length ? ` WHERE ${whereClauses.join(" AND ")}` : ""}`
@@ -790,6 +661,12 @@ ipcMain.handle("get-dashboard-stats", async () => {
 
 ipcMain.handle("get-bill", async (event, billId) => {
   return parseBill(queryOne("SELECT * FROM bills WHERE _id = ?", [billId]))
+})
+
+ipcMain.handle("get-latest-bill", async () => {
+  return queryOne(
+    "SELECT fieldOfficerId, salesmanId FROM bills WHERE billId IS NOT NULL ORDER BY CAST(billId AS INTEGER) DESC LIMIT 1"
+  )
 })
 
 ipcMain.handle("add-bill", async (event, bill) => {
@@ -1016,15 +893,8 @@ ipcMain.handle("get-app-config", async () => {
   }
 })
 
-ipcMain.handle("get-data-restore-status", async () => ({ required: restoreRequired }))
-
 ipcMain.handle("import-all-data", async (event, data) => {
   importJsonBackup(db, data, { generateId, ensureItemsHaveIds, toIsoDate })
-
-  if (restoreRequired) {
-    fs.rmSync(RESTORE_MARKER_PATH(), { force: true })
-    restoreRequired = false
-  }
   return { success: true }
 })
 

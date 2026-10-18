@@ -42,6 +42,7 @@ contextBridge.exposeInMainWorld("api", {
   // Bills
   getBills: (opts) => ipcRenderer.invoke("get-bills", opts),
   getBill: (billId) => ipcRenderer.invoke("get-bill", billId),
+  getLatestBill: () => ipcRenderer.invoke("get-latest-bill"),
   addBill: (bill) => ipcRenderer.invoke("add-bill", bill),
   addBills: (bills) => ipcRenderer.invoke("add-bills", bills),
   updateBill: (bill) => ipcRenderer.invoke("update-bill", bill),

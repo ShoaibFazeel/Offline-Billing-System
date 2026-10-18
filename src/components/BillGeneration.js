@@ -28,6 +28,7 @@ function BillGeneration() {
   const [selectedClient, setSelectedClient] = useState(null)
   const [selectedFieldOfficer, setSelectedFieldOfficer] = useState(null)
   const [selectedSalesman, setSelectedSalesman] = useState(null)
+  const [lastBillForDefaults, setLastBillForDefaults] = useState(null)
   const [clientSearchTerm, setClientSearchTerm] = useState("")
   const [fieldOfficerSearchTerm, setFieldOfficerSearchTerm] = useState("")
   const [salesmanSearchTerm, setSalesmanSearchTerm] = useState("")
@@ -83,6 +84,8 @@ function BillGeneration() {
   const clientDropdownRef = useRef(null)
   const fieldOfficerDropdownRef = useRef(null)
   const salesmanDropdownRef = useRef(null)
+  const fieldOfficerSelectionTouched = useRef(false)
+  const salesmanSelectionTouched = useRef(false)
   const productDropdownRef = useRef(null)
   const bonusProductDropdownRefs = useRef({})
 
@@ -106,6 +109,38 @@ function BillGeneration() {
       dataService.unregisterRefreshCallback("salesmen", refreshSalesmen)
     }
   }, [refreshProducts, refreshClients, refreshFieldOfficers, refreshSalesmen])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadLastBill = async () => {
+      try {
+        const lastBill = await window.api?.getLatestBill()
+        if (!cancelled && lastBill) setLastBillForDefaults(lastBill)
+      } catch (error) {
+        console.error("Failed to load last bill defaults:", error)
+      }
+    }
+
+    loadLastBill()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!lastBillForDefaults) return
+
+    if (!fieldOfficerSelectionTouched.current) {
+      const lastFieldOfficer = fieldOfficers.find((officer) => officer._id === lastBillForDefaults.fieldOfficerId)
+      if (lastFieldOfficer) setSelectedFieldOfficer(lastFieldOfficer)
+    }
+
+    if (!salesmanSelectionTouched.current) {
+      const lastSalesman = salesmen.find((salesman) => salesman._id === lastBillForDefaults.salesmanId)
+      if (lastSalesman) setSelectedSalesman(lastSalesman)
+    }
+  }, [lastBillForDefaults, fieldOfficers, salesmen])
 
   useEffect(() => {
     calculateBillTotal()
@@ -245,11 +280,13 @@ function BillGeneration() {
   }
 
   const handleFieldOfficerSelect = async (fieldOfficer) => {
+    fieldOfficerSelectionTouched.current = true
     setSelectedFieldOfficer(fieldOfficer)
     setFieldOfficerSearchTerm("")
   }
 
   const handleSalesmanSelect = async (salesman) => {
+    salesmanSelectionTouched.current = true
     setSelectedSalesman(salesman)
     setSalesmanSearchTerm("")
   }
@@ -1300,7 +1337,10 @@ function BillGeneration() {
               placeholder="Search field officer by name or phone..."
               className="w-full pl-3 pr-4 py-2.5 bg-slate-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm transition-all"
               value={fieldOfficerSearchTerm}
-              onChange={(e) => setFieldOfficerSearchTerm(e.target.value)}
+              onChange={(e) => {
+                fieldOfficerSelectionTouched.current = true
+                setFieldOfficerSearchTerm(e.target.value)
+              }}
               onKeyDown={handleFieldOfficerKeyDown}
               ref={fieldOfficerSearchRef}
             />
@@ -1345,7 +1385,10 @@ function BillGeneration() {
               placeholder="Search salesman by name or phone..."
               className="w-full pl-3 pr-4 py-2.5 bg-slate-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm transition-all"
               value={salesmanSearchTerm}
-              onChange={(e) => setSalesmanSearchTerm(e.target.value)}
+              onChange={(e) => {
+                salesmanSelectionTouched.current = true
+                setSalesmanSearchTerm(e.target.value)
+              }}
               onKeyDown={handleSalesmanKeyDown}
               ref={salesmanSearchRef}
             />
