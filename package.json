@@ -6,7 +6,6 @@
   "scripts": {
     "build-react": "webpack --mode=production",
     "build-react-dev": "webpack --mode=development",
-    "test:database-bootstrap": "electron --no-sandbox scripts/verify-database-bootstrap.cjs",
     "start": "npm run build-react-dev && electron .",
     "dev": "cross-env NODE_ENV=development concurrently \"webpack --mode=development --watch\" \"electron .\"",
     "build": "npm run build-react && electron-builder",
