@@ -99,19 +99,6 @@ function toIsoDate(value) {
   return date.toISOString()
 }
 
-function addDaysToDateString(dateString, days = 0) {
-  if (!dateString) return dateString
-  const [year, month, day] = dateString.split("-").map(Number)
-  if (!year || !month || !day) return dateString
-  const date = new Date(Date.UTC(year, month - 1, day))
-  date.setUTCDate(date.getUTCDate() + days)
-  return date.toISOString().slice(0, 10)
-}
-
-function addOneDayToDateString(dateString) {
-  return addDaysToDateString(dateString, 1)
-}
-
 /** Open the existing SQLite database with durable, disk-backed storage. */
 async function initDatabase() {
   const dbPath = DB_PATH()
@@ -620,15 +607,13 @@ ipcMain.handle("get-bills", async (event, opts = {}) => {
   }
 
   if (fromDate) {
-    const fromBuf = addDaysToDateString(fromDate, -1)
-    whereClauses.push("(DATE(billDate) >= ? OR DATE(billDate, 'localtime') >= ? OR billDate >= ?)")
-    params.push(fromBuf, fromBuf, fromBuf)
+    whereClauses.push("DATE(billDate) >= ?")
+    params.push(fromDate)
   }
 
   if (toDate) {
-    const toBuf = addDaysToDateString(toDate, 1)
-    whereClauses.push("(DATE(billDate) <= ? OR DATE(billDate, 'localtime') <= ? OR billDate <= ?)")
-    params.push(toBuf, toBuf, `${toBuf}T23:59:59.999Z`)
+    whereClauses.push("DATE(billDate) <= ?")
+    params.push(toDate)
   }
 
   const fromWhere = `FROM bills${whereClauses.length ? ` WHERE ${whereClauses.join(" AND ")}` : ""}`
@@ -676,6 +661,12 @@ ipcMain.handle("get-dashboard-stats", async () => {
 
 ipcMain.handle("get-bill", async (event, billId) => {
   return parseBill(queryOne("SELECT * FROM bills WHERE _id = ?", [billId]))
+})
+
+ipcMain.handle("get-latest-bill", async () => {
+  return queryOne(
+    "SELECT fieldOfficerId, salesmanId FROM bills WHERE billId IS NOT NULL ORDER BY CAST(billId AS INTEGER) DESC LIMIT 1"
+  )
 })
 
 ipcMain.handle("add-bill", async (event, bill) => {

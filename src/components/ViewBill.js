@@ -851,12 +851,20 @@ function ViewBill() {
     }))
   }
 
-  const filteredProducts = (searchTerm) => {
-    if (!searchTerm) return products
-    return products.filter((product) =>
-      product.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (product.companyName && product.companyName.toLowerCase().includes(searchTerm.toLowerCase()))
-    )
+  const filteredProducts = (searchTerm, maxLimit = 50) => {
+    if (!searchTerm || !searchTerm.trim()) return []
+    const term = searchTerm.toLowerCase().trim()
+    const matches = []
+    for (const product of products) {
+      if (
+        (product.productName && product.productName.toLowerCase().includes(term)) ||
+        (product.companyName && product.companyName.toLowerCase().includes(term))
+      ) {
+        matches.push(product)
+        if (matches.length >= maxLimit) break
+      }
+    }
+    return matches
   }
 
   const filteredAddedBillItems = addedItemsSearchTerm

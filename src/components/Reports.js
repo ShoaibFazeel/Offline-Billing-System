@@ -33,6 +33,8 @@ function Reports() {
   const [fieldOfficers, setFieldOfficers] = useState([])
   const [salesmen, setSalesmen] = useState([])
   const [loading, setLoading] = useState(true)
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false)
+  const [reportGenerated, setReportGenerated] = useState(false)
   const [addressFilter, setAddressFilter] = useState(() => savedFilters.addressFilter || "")
   const [salesmanFilter, setSalesmanFilter] = useState(() => savedFilters.salesmanFilter || "")
   const [fieldOfficerFilter, setFieldOfficerFilter] = useState(() => savedFilters.fieldOfficerFilter || "")
@@ -105,6 +107,8 @@ function Reports() {
       to: currentDateFilter?.to || getDefaultDateFilter().to,
     }
 
+    setIsGeneratingReport(true)
+    setReportGenerated(false)
     try {
       if (window.api) {
         const billsData = await window.api.getBills({
@@ -138,10 +142,12 @@ function Reports() {
           },
         ])
       }
+      setReportGenerated(true)
     } catch (error) {
       console.error("Error fetching bills:", error)
-      setError("Failed to load report data. Please try again later.")
       toast.error("Failed to load report data")
+    } finally {
+      setIsGeneratingReport(false)
     }
   }
 
@@ -149,28 +155,22 @@ function Reports() {
     setLoading(true)
     setError(null)
     try {
-      let billsData, clientsData, productsData, fieldOfficersData, salesmenData
+      let clientsData, productsData, fieldOfficersData, salesmenData
 
       if (window.api) {
-        ;[billsData, clientsData, productsData, fieldOfficersData, salesmenData] = await Promise.all([
-          window.api.getBills({
-            fromDate: dateFilter.from || getDefaultDateFilter().from,
-            toDate: dateFilter.to || getDefaultDateFilter().to,
-          }),
+        ;[clientsData, productsData, fieldOfficersData, salesmenData] = await Promise.all([
           window.api.getClients(),
           window.api.getProducts(),
           window.api.getFieldOfficers(),
           window.api.getSalesmen(),
         ])
       } else {
-        billsData = []
         clientsData = []
         productsData = []
         fieldOfficersData = []
         salesmenData = []
       }
 
-      setBills(Array.isArray(billsData) ? billsData : billsData?.data || [])
       setClients(clientsData || [])
       setFieldOfficers(fieldOfficersData || [])
       setSalesmen(salesmenData || [])
@@ -208,11 +208,11 @@ function Reports() {
     }
   }
 
-  const handleDateFilterChange = async (e) => {
+  const handleDateFilterChange = (e) => {
     const { name, value } = e.target
     const nextDateFilter = { ...dateFilter, [name]: value }
     setDateFilter(nextDateFilter)
-    await fetchBillsData(nextDateFilter)
+    setReportGenerated(false)
   }
 
   const handleSearch = (term) => {
@@ -251,7 +251,7 @@ function Reports() {
     setCompanyFilter(name)
   }
 
-  const handleResetFilters = async () => {
+  const handleResetFilters = () => {
     setAddressFilter("")
     setSalesmanFilter("")
     setFieldOfficerFilter("")
@@ -264,7 +264,7 @@ function Reports() {
     setSelectedCompanyForItem("")
     const defaultDateFilter = getDefaultDateFilter()
     setDateFilter(defaultDateFilter)
-    await fetchBillsData(defaultDateFilter)
+    setReportGenerated(false)
   }
 
   // Clear selectedProductObj when search term is cleared
@@ -321,15 +321,6 @@ function Reports() {
     bills.forEach((bill) => {
       if (!bill || !bill.items || !Array.isArray(bill.items)) return
 
-      const billDateStr = bill.billDate ? configService.formatIsoDate(bill.billDate) : ""
-      let matchesDateRange = true
-      if (dateFilter.from) {
-        matchesDateRange = matchesDateRange && billDateStr >= dateFilter.from
-      }
-      if (dateFilter.to) {
-        matchesDateRange = matchesDateRange && billDateStr <= dateFilter.to
-      }
-
       const client = getClient(bill.clientId)
       const clientAddress = bill.clientAddress || client?.clientAddress || ""
       const matchesAddress = !addressFilter || clientAddress.toLowerCase().includes(addressFilter.toLowerCase())
@@ -343,7 +334,7 @@ function Reports() {
         clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         billIdStr.toLowerCase().includes(searchTerm.toLowerCase())
 
-      if (!matchesDateRange || !matchesAddress || !matchesSalesman || !matchesFieldOfficer || !matchesSearch) return
+      if (!matchesAddress || !matchesSalesman || !matchesFieldOfficer || !matchesSearch) return
 
       bill.items.forEach((item) => {
         if (item.productId === selectedProductObj._id) {
@@ -399,15 +390,6 @@ function Reports() {
     bills.forEach((bill) => {
       if (!bill || !bill.items || !Array.isArray(bill.items)) return
 
-      const billDateStr = bill.billDate ? configService.formatIsoDate(bill.billDate) : ""
-      let matchesDateRange = true
-      if (dateFilter.from) {
-        matchesDateRange = matchesDateRange && billDateStr >= dateFilter.from
-      }
-      if (dateFilter.to) {
-        matchesDateRange = matchesDateRange && billDateStr <= dateFilter.to
-      }
-
       const client = getClient(bill.clientId)
       const clientAddress = bill.clientAddress || client?.clientAddress || ""
       const matchesAddress = !addressFilter || clientAddress.toLowerCase().includes(addressFilter.toLowerCase())
@@ -422,7 +404,7 @@ function Reports() {
         clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         billIdStr.toLowerCase().includes(searchTerm.toLowerCase())
 
-      if (!matchesDateRange || !matchesAddress || !matchesSalesman || !matchesFieldOfficer || !matchesSearch) return
+      if (!matchesAddress || !matchesSalesman || !matchesFieldOfficer || !matchesSearch) return
 
       bill.items.forEach((item) => {
         let matches = targetProductIds.has(item.productId)
@@ -503,15 +485,6 @@ function Reports() {
 
       const matchesAddress = !addressFilter || clientAddress.toLowerCase().includes(addressFilter.toLowerCase())
 
-      const billDateStr = bill.billDate ? configService.formatIsoDate(bill.billDate) : ""
-      let matchesDateRange = true
-      if (dateFilter.from) {
-        matchesDateRange = matchesDateRange && billDateStr >= dateFilter.from
-      }
-      if (dateFilter.to) {
-        matchesDateRange = matchesDateRange && billDateStr <= dateFilter.to
-      }
-
       const matchesSearch =
         !searchTerm ||
         clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -530,7 +503,6 @@ function Reports() {
 
       return (
         matchesAddress &&
-        matchesDateRange &&
         matchesSearch &&
         matchesSalesman &&
         matchesFieldOfficer &&
@@ -774,10 +746,13 @@ function Reports() {
         y = pageHeight - margin - 20
         y = drawTableHead(page, y)
       }
+      y -= 2
+      page.drawLine({ start: { x: left, y: y + 8 }, end: { x: right, y: y + 8 }, thickness: 0.5, color: rgb(0.55, 0.55, 0.55) })
       page.drawText(`Subtotal (${groupInvoiceCount} invoices):`, { x: left, y, size: 8, font: boldItalic })
       const groupTotalStr = `${Math.round(groupTotal)}.00`
       const groupTotalWidth = boldItalic.widthOfTextAtSize(groupTotalStr, 8)
       page.drawText(groupTotalStr, { x: col.amountRight - groupTotalWidth, y, size: 8, font: boldItalic })
+      page.drawLine({ start: { x: left, y: y - 5 }, end: { x: right, y: y - 5 }, thickness: 0.5, color: rgb(0.55, 0.55, 0.55) })
       y -= 12
       y -= 4
     }
@@ -1682,12 +1657,20 @@ function Reports() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            Refresh Data
+            Refresh Filter Options
           </button>
           <div className="flex gap-3 w-full sm:w-auto">
             <button
+              onClick={() => fetchBillsData()}
+              disabled={isGeneratingReport}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white px-5 py-2.5 rounded-xl font-bold transition-colors shadow-sm text-sm"
+            >
+              {isGeneratingReport ? "Generating..." : "Generate Report"}
+            </button>
+            <button
               onClick={printReportPdf}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-5 py-2.5 rounded-xl font-bold transition-colors shadow-sm text-sm"
+              disabled={!reportGenerated || isGeneratingReport}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-white border border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 px-5 py-2.5 rounded-xl font-bold transition-colors shadow-sm text-sm"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
@@ -1696,7 +1679,8 @@ function Reports() {
             </button>
             <button
               onClick={generateReportPdf}
-              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-md hover:shadow-lg text-sm ${
+              disabled={!reportGenerated || isGeneratingReport}
+              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed text-sm ${
                 reportType === "itemCompany"
                   ? "bg-purple-600 hover:bg-purple-700"
                   : reportType === "item"
@@ -1713,10 +1697,16 @@ function Reports() {
         </div>
       </div>
 
+      {!reportGenerated && (
+        <div className="py-12 text-center text-sm font-semibold text-slate-500" role={isGeneratingReport ? "status" : undefined}>
+          {isGeneratingReport ? "Generating report..." : "Report not generated"}
+        </div>
+      )}
+
       {/* ───────────────────────────────────────────────────────────── */}
       {/* 1. DAILY SALE REPORT TABLE VIEW */}
       {/* ───────────────────────────────────────────────────────────── */}
-      {reportType === "daily" && (
+      {reportGenerated && reportType === "daily" && (
         groupedBills.length > 0 ? (
           <div className="space-y-6">
             {groupedBills.map((group, groupIndex) => (
@@ -1824,7 +1814,7 @@ function Reports() {
       {/* ───────────────────────────────────────────────────────────── */}
       {/* 2. ITEM REPORT TABLE VIEW */}
       {/* ───────────────────────────────────────────────────────────── */}
-      {reportType === "item" && (
+      {reportGenerated && reportType === "item" && (
         itemReportData.length > 0 ? (
           <div className="space-y-6">
             <div className="bg-white rounded-2xl shadow-md border border-slate-200/80 overflow-hidden">
@@ -1928,7 +1918,7 @@ function Reports() {
       {/* ───────────────────────────────────────────────────────────── */}
       {/* 3. ITEM COMPANY REPORT TABLE VIEW (NEW FEATURE) */}
       {/* ───────────────────────────────────────────────────────────── */}
-      {reportType === "itemCompany" && (
+      {reportGenerated && reportType === "itemCompany" && (
         itemCompanyReportData.length > 0 ? (
           <div className="space-y-6">
             <div className="bg-white rounded-2xl shadow-md border border-slate-200/80 overflow-hidden">
