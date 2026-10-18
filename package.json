@@ -6,10 +6,7 @@
   "scripts": {
     "build-react": "webpack --mode=production",
     "build-react-dev": "webpack --mode=development",
-    "test:sqlite-driver": "electron --no-sandbox scripts/verify-sqlite-driver.cjs",
-    "test:sqlite-file": "electron --no-sandbox scripts/verify-existing-sqlite.cjs",
-    "test:sqlite-recovery": "electron --no-sandbox scripts/verify-startup-recovery.cjs",
-    "test:auto-migration": "electron --no-sandbox scripts/verify-auto-migration.cjs",
+    "test:database-bootstrap": "electron --no-sandbox scripts/verify-database-bootstrap.cjs",
     "start": "npm run build-react-dev && electron .",
     "dev": "cross-env NODE_ENV=development concurrently \"webpack --mode=development --watch\" \"electron .\"",
     "build": "npm run build-react && electron-builder",
@@ -33,7 +30,6 @@
     "react-dom": "^18.2.0",
     "react-hot-toast": "^2.4.1",
     "react-router-dom": "^6.14.1",
-    "sql.js": "^1.14.2",
     "uuid": "^11.1.0"
   },
   "devDependencies": {

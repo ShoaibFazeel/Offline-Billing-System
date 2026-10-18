@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { HashRouter as Router, Routes, Route, Link, useLocation } from "react-router-dom"
 import Dashboard from "./components/Dashboard"
 import InventoryManagement from "./components/InventoryManagement"
@@ -20,11 +20,6 @@ import "./index.css"
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [pendingUpdate, setPendingUpdate] = useState(null)
-  const [restoreRequired, setRestoreRequired] = useState(false)
-  const [restoreChecking, setRestoreChecking] = useState(true)
-  const [restoreError, setRestoreError] = useState("")
-  const [restoringData, setRestoringData] = useState(false)
-  const restoreFileRef = useRef(null)
 
   useEffect(() => {
     const removeListener = window.api?.onUpdateStatus?.((payload) => {
@@ -53,37 +48,6 @@ function App() {
     return () => removeListener?.()
   }, [])
 
-  useEffect(() => {
-    window.api.getDataRestoreStatus()
-      .then(({ required }) => setRestoreRequired(required))
-      .catch((error) => {
-        console.error("Failed to check database restore status:", error)
-        setRestoreRequired(true)
-        setRestoreError("Could not confirm database status. Select your backup to continue safely.")
-      })
-      .finally(() => setRestoreChecking(false))
-  }, [])
-
-  const handleRestoreBackup = async (event) => {
-    const file = event.target.files?.[0]
-    event.target.value = ""
-    if (!file) return
-
-    setRestoringData(true)
-    setRestoreError("")
-    try {
-      const backupData = JSON.parse(await file.text())
-      await window.api.importAllData(backupData)
-      setRestoreRequired(false)
-      toast.success("Your data has been restored")
-    } catch (error) {
-      console.error("Failed to restore data:", error)
-      setRestoreError(error.message || "The selected backup could not be restored. Choose a valid All Data JSON backup and try again.")
-    } finally {
-      setRestoringData(false)
-    }
-  }
-
   const handleInstallPendingUpdate = async () => {
     if (!pendingUpdate?.downloaded || pendingUpdate.installing) {
       toast.error("The update is not ready to install yet")
@@ -98,47 +62,6 @@ function App() {
       setPendingUpdate((current) => current ? { ...current, installing: false } : current)
       toast.error("Failed to start the update installation")
     }
-  }
-
-  if (restoreChecking || restoreRequired) {
-    return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4">
-        {restoreChecking ? (
-          <div className="rounded-xl bg-white p-6 text-sm font-semibold text-slate-700 shadow-2xl" role="status">
-            Checking database status...
-          </div>
-        ) : (
-          <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="restore-title">
-            <h1 id="restore-title" className="text-lg font-extrabold text-slate-900">Restore your billing data</h1>
-            <p className="mt-2 text-sm text-slate-600">
-              This version uses a new database engine. Select the All Data JSON backup you exported before updating. Your existing database has been preserved for recovery.
-            </p>
-            {restoreError && (
-              <p className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-800" role="alert">
-                {restoreError}
-              </p>
-            )}
-            <input
-              ref={restoreFileRef}
-              type="file"
-              accept=".json,application/json"
-              className="sr-only"
-              onChange={handleRestoreBackup}
-              disabled={restoringData}
-            />
-            <button
-              type="button"
-              onClick={() => restoreFileRef.current?.click()}
-              disabled={restoringData}
-              className="mt-5 inline-flex min-h-10 items-center justify-center rounded-md bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-800 disabled:cursor-wait disabled:opacity-60"
-            >
-              {restoringData ? "Restoring data..." : "Choose All Data Backup"}
-            </button>
-          </div>
-        )}
-        <Toaster position="top-right" />
-      </div>
-    )
   }
 
   return (
