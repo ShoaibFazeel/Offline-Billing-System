@@ -373,7 +373,7 @@ function ViewBill() {
   const handleDateChange = (e) => {
     setEditedBill({
       ...editedBill,
-      billDate: new Date(`${e.target.value}T00:00:00`),
+      billDate: e.target.value,
     })
   }
 

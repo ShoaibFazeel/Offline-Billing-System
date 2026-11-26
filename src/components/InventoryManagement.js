@@ -5,6 +5,7 @@ import { useLocation } from "react-router-dom"
 import toast from "react-hot-toast"
 import { useLazyData } from "../hooks/useLazyData"
 import dataService from "../services/DataService"
+import storageService from "../services/StorageService"
 
 const emptyProduct = {
   productName: "",
@@ -31,7 +32,7 @@ function InventoryManagement() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [currentProduct, setCurrentProduct] = useState(emptyProduct)
   const [isEditing, setIsEditing] = useState(false)
-  const [searchTerm, setSearchTerm] = useState("")
+  const [searchTerm, setSearchTerm] = useState(() => storageService.getLocalItem("inventorySearchTerm") || "")
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
 
@@ -45,6 +46,7 @@ function InventoryManagement() {
 
   useEffect(() => {
     searchProducts(searchTerm)
+    storageService.setLocalItem("inventorySearchTerm", searchTerm)
   }, [searchTerm, searchProducts])
 
   useEffect(() => {

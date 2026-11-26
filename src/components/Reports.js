@@ -43,8 +43,10 @@ function Reports() {
   const [dateFilter, setDateFilter] = useState(() => ({ ...getDefaultDateFilter(), ...savedFilters.dateFilter }))
   const [groupBy, setGroupBy] = useState(() => savedFilters.groupBy || "address") // 'address', 'client', 'date'
   const [error, setError] = useState(null)
-  const [searchTerm, setSearchTerm] = useState(() => savedFilters.searchTerm || "")
-  const [reportType, setReportType] = useState(() => savedFilters.reportType || "daily") // 'daily', 'item', or 'itemCompany'
+  const [searchTerm, setSearchTerm] = useState(() => (savedFilters.searchTerm || "").replace(/\D/g, ""))
+  const [clientFilter, setClientFilter] = useState(() => savedFilters.clientFilter || "")
+  const [clientSearchTerm, setClientSearchTerm] = useState("")
+  const [reportType, setReportType] = useState(() => savedFilters.reportType || "daily") // 'daily', 'item', 'itemCompany', or 'company'
 
   // Item Report State
   const [selectedProduct, setSelectedProduct] = useState(() => savedFilters.selectedProduct || "")
@@ -58,6 +60,9 @@ function Reports() {
   // Company Filter for Daily Sale Report
   const [companies, setCompanies] = useState([])
   const [companyFilter, setCompanyFilter] = useState(() => savedFilters.companyFilter || "")
+  const [companyReportFilter, setCompanyReportFilter] = useState(() => savedFilters.companyReportFilter || "")
+  const isCompanyReportSelectionValid = () =>
+    companies.some((company) => company.trim().toLowerCase() === companyReportFilter.trim().toLowerCase())
 
   useEffect(() => {
     fetchData()
@@ -67,6 +72,8 @@ function Reports() {
     storageService.setLocalItem("reportsFilters", JSON.stringify({
       addressFilter,
       companyFilter,
+      companyReportFilter,
+      clientFilter,
       dateFilter,
       fieldOfficerFilter,
       groupBy,
@@ -82,6 +89,8 @@ function Reports() {
   }, [
     addressFilter,
     companyFilter,
+    companyReportFilter,
+    clientFilter,
     dateFilter,
     fieldOfficerFilter,
     groupBy,
@@ -96,12 +105,41 @@ function Reports() {
   ])
 
   useEffect(() => {
+    setReportGenerated(false)
+  }, [
+    addressFilter,
+    companyFilter,
+    companyReportFilter,
+    clientFilter,
+    dateFilter,
+    fieldOfficerFilter,
+    groupBy,
+    reportType,
+    salesmanFilter,
+    searchTerm,
+    selectedCompanyForItem,
+    selectedItemName,
+    selectedProductId,
+  ])
+
+  useEffect(() => {
     if (!selectedProductId || products.length === 0) return
     const product = products.find((item) => item._id === selectedProductId)
     if (product) setSelectedProductObj(product)
   }, [products, selectedProductId])
 
+  useEffect(() => {
+    if (!clientFilter) return
+    const selectedClient = clients.find((client) => client._id === clientFilter)
+    if (selectedClient) setClientSearchTerm(selectedClient.clientName || "")
+  }, [clients, clientFilter])
+
   const fetchBillsData = async (currentDateFilter = dateFilter) => {
+    if (reportType === "company" && !isCompanyReportSelectionValid()) {
+      toast.error("Please select a company first")
+      return
+    }
+
     const activeDateFilter = {
       from: currentDateFilter?.from || getDefaultDateFilter().from,
       to: currentDateFilter?.to || getDefaultDateFilter().to,
@@ -216,7 +254,7 @@ function Reports() {
   }
 
   const handleSearch = (term) => {
-    setSearchTerm(term)
+    setSearchTerm(term.replace(/\D/g, ""))
   }
 
   const handleAddressSelect = (address) => {
@@ -251,11 +289,31 @@ function Reports() {
     setCompanyFilter(name)
   }
 
+  const handleCompanyReportSelect = (companyItem) => {
+    setCompanyReportFilter(companyItem?.name || "")
+    setReportGenerated(false)
+  }
+
+  const handleClientSelect = (client) => {
+    setClientFilter(client?._id || "")
+    setClientSearchTerm(client?.clientName || "")
+    setReportGenerated(false)
+  }
+
+  const handleClientSearchChange = (value) => {
+    setClientSearchTerm(value)
+    setClientFilter("")
+    setReportGenerated(false)
+  }
+
   const handleResetFilters = () => {
     setAddressFilter("")
     setSalesmanFilter("")
     setFieldOfficerFilter("")
     setCompanyFilter("")
+    setCompanyReportFilter("")
+    setClientFilter("")
+    setClientSearchTerm("")
     setSearchTerm("")
     setSelectedProduct("")
     setSelectedProductId("")
@@ -322,19 +380,21 @@ function Reports() {
       if (!bill || !bill.items || !Array.isArray(bill.items)) return
 
       const client = getClient(bill.clientId)
+      const selectedClient = clients.find((candidate) => candidate._id === clientFilter)
+      const matchesClient =
+        !clientFilter ||
+        bill.clientId === clientFilter ||
+        (!bill.clientId && (bill.clientName || "").trim().toLowerCase() === (selectedClient?.clientName || "").trim().toLowerCase())
       const clientAddress = bill.clientAddress || client?.clientAddress || ""
       const matchesAddress = !addressFilter || clientAddress.toLowerCase().includes(addressFilter.toLowerCase())
       const matchesSalesman = !salesmanFilter || bill.salesmanId === salesmanFilter
       const matchesFieldOfficer = !fieldOfficerFilter || bill.fieldOfficerId === fieldOfficerFilter
 
       const clientName = bill.clientName || client?.clientName || ""
-      const billIdStr = bill.billId ? String(bill.billId) : (bill._id || "")
-      const matchesSearch =
-        !searchTerm ||
-        clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        billIdStr.toLowerCase().includes(searchTerm.toLowerCase())
+      const billIdStr = bill.billId == null ? "" : String(bill.billId)
+      const matchesSearch = !searchTerm || billIdStr.toLowerCase().includes(searchTerm.toLowerCase())
 
-      if (!matchesAddress || !matchesSalesman || !matchesFieldOfficer || !matchesSearch) return
+      if (!matchesClient || !matchesAddress || !matchesSalesman || !matchesFieldOfficer || !matchesSearch) return
 
       bill.items.forEach((item) => {
         if (item.productId === selectedProductObj._id) {
@@ -351,7 +411,7 @@ function Reports() {
     })
 
     return data
-  }, [bills, selectedProductObj, dateFilter, addressFilter, salesmanFilter, fieldOfficerFilter, searchTerm, clients])
+  }, [bills, selectedProductObj, dateFilter, addressFilter, salesmanFilter, fieldOfficerFilter, searchTerm, clients, clientFilter])
 
   const itemTotals = useMemo(
     () => ({
@@ -391,6 +451,11 @@ function Reports() {
       if (!bill || !bill.items || !Array.isArray(bill.items)) return
 
       const client = getClient(bill.clientId)
+      const selectedClient = clients.find((candidate) => candidate._id === clientFilter)
+      const matchesClient =
+        !clientFilter ||
+        bill.clientId === clientFilter ||
+        (!bill.clientId && (bill.clientName || "").trim().toLowerCase() === (selectedClient?.clientName || "").trim().toLowerCase())
       const clientAddress = bill.clientAddress || client?.clientAddress || ""
       const matchesAddress = !addressFilter || clientAddress.toLowerCase().includes(addressFilter.toLowerCase())
       const matchesSalesman = !salesmanFilter || bill.salesmanId === salesmanFilter
@@ -398,13 +463,10 @@ function Reports() {
 
       const clientName = bill.clientName || client?.clientName || ""
       const clientPhone = client?.clientNumber || client?.phoneNumber || "N/A"
-      const billIdStr = bill.billId ? String(bill.billId) : (bill._id || "")
-      const matchesSearch =
-        !searchTerm ||
-        clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        billIdStr.toLowerCase().includes(searchTerm.toLowerCase())
+      const billIdStr = bill.billId == null ? "" : String(bill.billId)
+      const matchesSearch = !searchTerm || billIdStr.toLowerCase().includes(searchTerm.toLowerCase())
 
-      if (!matchesAddress || !matchesSalesman || !matchesFieldOfficer || !matchesSearch) return
+      if (!matchesClient || !matchesAddress || !matchesSalesman || !matchesFieldOfficer || !matchesSearch) return
 
       bill.items.forEach((item) => {
         let matches = targetProductIds.has(item.productId)
@@ -459,6 +521,7 @@ function Reports() {
     fieldOfficerFilter,
     searchTerm,
     clients,
+    clientFilter,
     products,
   ])
 
@@ -475,41 +538,144 @@ function Reports() {
   // DAILY SALE REPORT DATA
   // ─────────────────────────────────────────────────────────────────
   const filteredBills = useMemo(() => {
+    const activeCompanyFilter = reportType === "company" ? companyReportFilter : companyFilter
+    const companyProductIds = activeCompanyFilter
+      ? new Set(
+          products
+            .filter((product) => (product.companyName || "").trim().toLowerCase() === activeCompanyFilter.trim().toLowerCase())
+            .map((product) => product._id)
+        )
+      : null
+    const companyProductNames = activeCompanyFilter
+      ? new Set(
+            products
+              .filter((product) => (product.companyName || "").trim().toLowerCase() === activeCompanyFilter.trim().toLowerCase())
+              .map((product) => (product.productName || "").trim().toLowerCase())
+        )
+      : null
+
     return bills.filter((bill) => {
-      if (!bill || !bill.clientId) return false
+      if (!bill || (reportType !== "company" && !bill.clientId)) return false
 
       const client = getClient(bill.clientId)
+      const selectedClient = clients.find((candidate) => candidate._id === clientFilter)
+      const matchesClient =
+        !clientFilter ||
+        bill.clientId === clientFilter ||
+        (!bill.clientId && (bill.clientName || "").trim().toLowerCase() === (selectedClient?.clientName || "").trim().toLowerCase())
       const clientAddress = bill.clientAddress || client?.clientAddress || ""
       const clientName = bill.clientName || client?.clientName || ""
-      const billId = bill.billId ? String(bill.billId) : (bill._id || "")
+      const billId = bill.billId == null ? "" : String(bill.billId)
 
       const matchesAddress = !addressFilter || clientAddress.toLowerCase().includes(addressFilter.toLowerCase())
 
-      const matchesSearch =
-        !searchTerm ||
-        clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        billId.toLowerCase().includes(searchTerm.toLowerCase())
+      const matchesSearch = !searchTerm || billId.toLowerCase().includes(searchTerm.toLowerCase())
 
       const matchesSalesman = !salesmanFilter || bill.salesmanId === salesmanFilter
       const matchesFieldOfficer = !fieldOfficerFilter || bill.fieldOfficerId === fieldOfficerFilter
 
-      let matchesCompany = true
-      if (companyFilter) {
-        const productIdsOfCompany = new Set(
-          products.filter((p) => p.companyName === companyFilter).map((p) => p._id)
-        )
-        matchesCompany = Array.isArray(bill.items) && bill.items.some((item) => productIdsOfCompany.has(item.productId))
-      }
+      const matchesCompany =
+        !companyProductIds ||
+        (Array.isArray(bill.items) && bill.items.some((item) => {
+          const itemProduct = products.find((product) => product._id === item.productId)
+          return companyProductIds.has(item.productId) ||
+            (!itemProduct && companyProductNames.has((item.productName || "").trim().toLowerCase()))
+        }))
 
       return (
         matchesAddress &&
         matchesSearch &&
         matchesSalesman &&
         matchesFieldOfficer &&
-        matchesCompany
+        matchesCompany &&
+        matchesClient
       )
     })
-  }, [bills, addressFilter, dateFilter, searchTerm, salesmanFilter, fieldOfficerFilter, clients, companyFilter, products])
+  }, [bills, addressFilter, dateFilter, searchTerm, salesmanFilter, fieldOfficerFilter, clients, companyFilter, companyReportFilter, products, reportType, clientFilter])
+
+  const companyReportData = useMemo(() => {
+    if (!companyReportFilter) return []
+
+    const companyProductIds = new Set(
+      products
+        .filter((product) => (product.companyName || "").trim().toLowerCase() === companyReportFilter.trim().toLowerCase())
+        .map((product) => product._id)
+    )
+    const companyProductNames = new Set(
+      products
+        .filter((product) => (product.companyName || "").trim().toLowerCase() === companyReportFilter.trim().toLowerCase())
+        .map((product) => (product.productName || "").trim().toLowerCase())
+    )
+    const rows = []
+
+    filteredBills.forEach((bill) => {
+      if (!Array.isArray(bill.items)) return
+
+      const client = getClient(bill.clientId)
+      bill.items.forEach((item, index) => {
+        const product = products.find((candidate) => candidate._id === item.productId)
+        const matchesCompany =
+          companyProductIds.has(item.productId) ||
+          (!product && companyProductNames.has((item.productName || "").trim().toLowerCase()))
+        if (!matchesCompany) return
+
+        const quantity = Number(item.quantity) || 0
+        const rate = Number(item.rate) || 0
+        const discount = Number(item.discount) || 0
+        const extraDiscount = Number(item.extraDiscount) || 0
+        const total = Number(item.total) ||
+          Math.round(quantity * rate * (1 - discount / 100) * (1 - extraDiscount / 100) * 100) / 100
+
+        rows.push({
+          _id: item._id || `${bill._id}_${item.productId || index}`,
+          billId: bill.billId || bill._id,
+          billKey: bill._id,
+          billDate: bill.billDate,
+          clientId: bill.clientId,
+          clientName: bill.clientName || client?.clientName || "Unknown",
+          clientAddress: bill.clientAddress || client?.clientAddress || "Unknown",
+          clientPhone: client?.clientNumber || client?.phoneNumber || "N/A",
+          bill,
+          productName: item.productName || product?.productName || "Unknown Item",
+          quantity,
+          rate,
+          discount,
+          extraDiscount,
+          total,
+          isBonus: item.isBonus || false,
+        })
+      })
+    })
+
+    return rows
+  }, [companyReportFilter, filteredBills, products, clients])
+
+  const companyReportTotals = useMemo(
+    () => ({
+      totalQuantity: companyReportData.reduce((sum, item) => sum + item.quantity, 0),
+      totalAmount: companyReportData.reduce((sum, item) => sum + item.total, 0),
+      invoiceCount: new Set(companyReportData.map((item) => item.billId)).size,
+    }),
+    [companyReportData]
+  )
+
+  const companyReportGroups = useMemo(() => {
+    const groups = new Map()
+    companyReportData.forEach((row) => {
+      const key = row.clientId || `${row.clientName}_${row.clientPhone}_${row.clientAddress}`
+      if (!groups.has(key)) {
+        groups.set(key, {
+          clientName: row.clientName,
+          clientPhone: row.clientPhone,
+          clientAddress: row.clientAddress,
+          rows: [],
+        })
+      }
+      groups.get(key).rows.push(row)
+    })
+
+    return [...groups.values()].sort((first, second) => first.clientName.localeCompare(second.clientName))
+  }, [companyReportData])
 
   // Group bills by selected criteria
   const groupedBills = useMemo(() => {
@@ -655,7 +821,7 @@ function Reports() {
     page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 1, color: rgb(0, 0, 0) })
     y -= 15
 
-    const reportTitle = "Daily Sale Report"
+    const reportTitle = reportType === "company" ? "Company Item Report" : "Daily Sale Report"
     const titleWidth = bold.widthOfTextAtSize(reportTitle, 12)
     page.drawText(reportTitle, { x: (pageWidth - titleWidth) / 2, y, size: 12, font: bold })
     y -= 15
@@ -665,6 +831,10 @@ function Reports() {
     const dateRangeText = `Period: ${fromDateStr} to ${toDateStr}`
     page.drawText(dateRangeText, { x: left, y, size: 8, font: italic })
     y -= 12
+    if (reportType === "company") {
+      page.drawText(`Item Company: ${companyReportFilter}`, { x: left, y, size: 8, font: italic })
+      y -= 12
+    }
 
     const col = {
       invoiceNo: left,
@@ -935,7 +1105,12 @@ function Reports() {
   // ─────────────────────────────────────────────────────────────────
   // PDF GENERATION: ITEM COMPANY REPORT (NEW FEATURE)
   // ─────────────────────────────────────────────────────────────────
-  const generateItemCompanyReportPdfBytes = async () => {
+  const generateItemCompanyReportPdfBytes = async (
+    rows = itemCompanyReportData,
+    title = "Item Company Report",
+    itemLabel = selectedItemName,
+    companyLabel = selectedCompanyForItem
+  ) => {
     const companyInfo = await window.api.getCompanyInfo()
     const { PDFDocument, rgb, StandardFonts } = await import("pdf-lib")
     const pdfDoc = await PDFDocument.create()
@@ -979,12 +1154,12 @@ function Reports() {
     page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 1, color: rgb(0, 0, 0) })
     y -= 16
 
-    const reportTitle = "Item Company Report"
+    const reportTitle = title
     const titleWidth = bold.widthOfTextAtSize(reportTitle, 13)
     page.drawText(reportTitle, { x: (pageWidth - titleWidth) / 2, y, size: 13, font: bold })
     y -= 16
 
-    const filterLine = `Item: ${selectedItemName}  |  Company: ${selectedCompanyForItem || "All Companies"}  |  Date: ${dateFilter.from} to ${dateFilter.to}`
+    const filterLine = `Item: ${itemLabel}  |  Company: ${companyLabel || "All Companies"}  |  Date: ${dateFilter.from} to ${dateFilter.to}`
     page.drawText(filterLine, { x: left, y, size: 9, font: boldItalic })
     y -= 12
     page.drawLine({ start: { x: left, y }, end: { x: right, y }, thickness: 0.8, color: rgb(0.2, 0.2, 0.2) })
@@ -1032,7 +1207,7 @@ function Reports() {
     let totalQuantity = 0
     let totalAmount = 0
 
-    for (const item of itemCompanyReportData) {
+    for (const item of rows) {
       y -= 3
       if (y < 70) {
         page = pdfDoc.addPage([pageWidth, pageHeight])
@@ -1095,6 +1270,13 @@ function Reports() {
       if (reportType === "daily") {
         pdfBytes = await generateReportPdfBytes()
         fileName = `DailySaleReport-${today}.pdf`
+      } else if (reportType === "company") {
+        if (!isCompanyReportSelectionValid()) {
+          toast.error("Please select a company first")
+          return
+        }
+        pdfBytes = await generateItemCompanyReportPdfBytes(companyReportData, "Company Item Report", "All Items", companyReportFilter)
+        fileName = `CompanyItemReport-${companyReportFilter.replace(/\s+/g, "_")}-${today}.pdf`
       } else if (reportType === "item") {
         if (!selectedProductObj) {
           toast.error("Please select a product first")
@@ -1133,6 +1315,12 @@ function Reports() {
       let pdfBytes
       if (reportType === "daily") {
         pdfBytes = await generateReportPdfBytes()
+      } else if (reportType === "company") {
+        if (!isCompanyReportSelectionValid()) {
+          toast.error("Please select a company first")
+          return
+        }
+        pdfBytes = await generateItemCompanyReportPdfBytes(companyReportData, "Company Item Report", "All Items", companyReportFilter)
       } else if (reportType === "item") {
         if (!selectedProductObj) {
           toast.error("Please select a product first")
@@ -1217,8 +1405,12 @@ function Reports() {
   }
 
   const currentTotal =
-    reportType === "daily"
+    !reportGenerated
+      ? 0
+      : reportType === "daily"
       ? calculateGrandTotal
+      : reportType === "company"
+      ? companyReportTotals.totalAmount
       : reportType === "item"
       ? itemTotals.totalAmount
       : itemCompanyTotals.totalAmount
@@ -1226,6 +1418,8 @@ function Reports() {
   const bannerLabel =
     reportType === "daily"
       ? "Daily Total"
+      : reportType === "company"
+      ? "Company Total"
       : reportType === "item"
       ? "Item Total"
       : "Item Company Total"
@@ -1269,7 +1463,7 @@ function Reports() {
         {/* Report Type Selector Tabs */}
         <div className="mb-5">
           <label className="block text-gray-700 text-xs font-bold uppercase tracking-wider mb-2">Report Type</label>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 p-1.5 bg-slate-100 border border-slate-200 rounded-2xl shadow-inner">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 p-1.5 bg-slate-100 border border-slate-200 rounded-2xl shadow-inner">
             <button
               onClick={() => setReportType("daily")}
               aria-pressed={reportType === "daily"}
@@ -1312,6 +1506,23 @@ function Reports() {
               </svg>
               Item Company Report
             </button>
+            <button
+              onClick={() => {
+                setReportType("company")
+                setReportGenerated(false)
+              }}
+              aria-pressed={reportType === "company"}
+              className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all ${
+                reportType === "company"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-200"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7h18M5 7v13h14V7M9 7V4h6v3m-6 5h6m-6 4h6" />
+              </svg>
+              Company Report
+            </button>
           </div>
         </div>
 
@@ -1331,9 +1542,28 @@ function Reports() {
         </div>
 
         {/* Dynamic Filters depending on report type */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 mb-4">
           {reportType === "daily" && (
             <>
+              <div>
+                <label className="block text-gray-700 text-xs font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <span>🏢 Company Filter</span>
+                  {companyFilter && (
+                    <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded font-semibold">Active</span>
+                  )}
+                </label>
+                <SearchBar
+                  placeholder="Select or search company..."
+                  items={companies.map((c) => ({ _id: c, name: c }))}
+                  displayProperty="name"
+                  iconType="company"
+                  accentColor="blue"
+                  onSelect={handleCompanySelect}
+                  initialValue={companyFilter}
+                  searchTerm={companyFilter}
+                  setSearchTerm={setCompanyFilter}
+                />
+              </div>
               <div>
                 <label className="block text-gray-700 text-xs font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                   <span>📍 Address Filter</span>
@@ -1353,23 +1583,50 @@ function Reports() {
                   setSearchTerm={setAddressFilter}
                 />
               </div>
+            </>
+          )}
+
+          {reportType === "company" && (
+            <>
               <div>
                 <label className="block text-gray-700 text-xs font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                  <span>🏢 Company Filter</span>
-                  {companyFilter && (
-                    <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded font-semibold">Active</span>
+                  <span>🏢 Item Company <span className="text-indigo-600">*</span></span>
+                  {companyReportFilter && (
+                    <span className="text-[10px] bg-indigo-100 text-indigo-800 px-1.5 py-0.2 rounded font-semibold">Selected</span>
                   )}
                 </label>
                 <SearchBar
-                  placeholder="Select or search company..."
-                  items={companies.map((c) => ({ _id: c, name: c }))}
+                  placeholder="Select or search item company..."
+                  items={companies.map((company) => ({ _id: company, name: company }))}
                   displayProperty="name"
                   iconType="company"
                   accentColor="blue"
-                  onSelect={handleCompanySelect}
-                  initialValue={companyFilter}
-                  searchTerm={companyFilter}
-                  setSearchTerm={setCompanyFilter}
+                  onSelect={handleCompanyReportSelect}
+                  initialValue={companyReportFilter}
+                  searchTerm={companyReportFilter}
+                  setSearchTerm={(value) => {
+                    setCompanyReportFilter(value)
+                    setReportGenerated(false)
+                  }}
+                />
+              </div>
+              <div>
+                <label className="block text-gray-700 text-xs font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <span>📍 Address Filter</span>
+                  {addressFilter && (
+                    <span className="text-[10px] bg-indigo-100 text-indigo-800 px-1.5 py-0.2 rounded font-semibold">Active</span>
+                  )}
+                </label>
+                <SearchBar
+                  placeholder="Select or search address..."
+                  items={addresses}
+                  displayProperty="clientAddress"
+                  iconType="address"
+                  accentColor="blue"
+                  onSelect={handleAddressSelect}
+                  initialValue={addressFilter}
+                  searchTerm={addressFilter}
+                  setSearchTerm={setAddressFilter}
                 />
               </div>
             </>
@@ -1436,7 +1693,7 @@ function Reports() {
             <>
               <div>
                 <label className="block text-gray-700 text-xs font-bold uppercase tracking-wider mb-1.5 flex items-center justify-between">
-                  <span>📦 1. Select Item <span className="text-purple-600">*</span></span>
+                  <span>📦 Select Item <span className="text-purple-600">*</span></span>
                   {selectedItemName && (
                     <span className="text-[10px] bg-purple-100 text-purple-800 px-1.5 py-0.2 rounded font-semibold">Selected</span>
                   )}
@@ -1496,7 +1753,7 @@ function Reports() {
 
           <div>
             <label className="block text-gray-700 text-xs font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-              <span>🔍 Search Client / Invoice</span>
+              <span>🔍 Search Invoice Number</span>
             </label>
             <div className="relative flex items-center">
               <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-10 flex items-center justify-center w-4 h-4">
@@ -1506,7 +1763,9 @@ function Reports() {
               </div>
               <input
                 type="text"
-                placeholder="Type party name or invoice number..."
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder="Type invoice number..."
                 className="w-full pl-10 pr-10 h-11 bg-slate-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-medium transition-all text-gray-800 placeholder-gray-400 shadow-sm"
                 value={searchTerm}
                 onChange={(e) => handleSearch(e.target.value)}
@@ -1524,6 +1783,26 @@ function Reports() {
                 </button>
               )}
             </div>
+          </div>
+          <div>
+            <label className="block text-gray-700 text-xs font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+              <span>👤 Client Filter</span>
+              {clientFilter && (
+                <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded font-semibold">Selected</span>
+              )}
+            </label>
+            <SearchBar
+              placeholder="All clients (select or search)..."
+              items={clients.slice().sort((a, b) => (a.clientName || "").localeCompare(b.clientName || ""))}
+              displayProperty="clientName"
+              secondaryProperty="clientNumber"
+              iconType="user"
+              accentColor="blue"
+              onSelect={handleClientSelect}
+              initialValue={clientSearchTerm}
+              searchTerm={clientSearchTerm}
+              setSearchTerm={handleClientSearchChange}
+            />
           </div>
         </div>
 
@@ -1681,7 +1960,9 @@ function Reports() {
               onClick={generateReportPdf}
               disabled={!reportGenerated || isGeneratingReport}
               className={`flex-1 sm:flex-none flex items-center justify-center gap-2 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed text-sm ${
-                reportType === "itemCompany"
+                reportType === "company"
+                  ? "bg-indigo-600 hover:bg-indigo-700"
+                  : reportType === "itemCompany"
                   ? "bg-purple-600 hover:bg-purple-700"
                   : reportType === "item"
                   ? "bg-emerald-600 hover:bg-emerald-700"
@@ -1806,6 +2087,129 @@ function Reports() {
               {addressFilter || dateFilter.from || dateFilter.to || searchTerm
                 ? "No bills match your current filter criteria."
                 : "There are no bills available to display."}
+            </p>
+          </div>
+        )
+      )}
+
+      {reportGenerated && reportType === "company" && (
+        companyReportGroups.length > 0 ? (
+          <div className="space-y-5">
+            {companyReportGroups.map((group, groupIndex) => {
+              const groupQuantity = group.rows.reduce((total, row) => total + row.quantity, 0)
+              const groupAmount = group.rows.reduce((total, row) => total + row.total, 0)
+              const groupInvoiceCount = new Set(group.rows.map((row) => row.billId)).size
+
+              return (
+                <section key={`${group.clientName}_${groupIndex}`} className="bg-white rounded-2xl shadow-md border border-slate-200/80 overflow-hidden">
+                  <header className="px-4 py-3 bg-slate-50 border-b border-gray-200">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                      <h3 className="font-bold text-gray-800 text-sm">Company Item Sales</h3>
+                      <span className="px-2.5 py-0.5 bg-indigo-100 text-indigo-800 text-xs font-bold rounded-full">
+                        {companyReportFilter}
+                      </span>
+                      <span className="hidden sm:block h-5 w-px bg-slate-300" aria-hidden="true" />
+                      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                        <span className="font-extrabold text-slate-900">{group.clientName}</span>
+                        <span className="text-slate-600">{group.clientPhone}</span>
+                        <span className="text-slate-600">{group.clientAddress}</span>
+                      </div>
+                      <span className="ml-auto whitespace-nowrap text-xs font-bold text-gray-500">
+                        {groupInvoiceCount} invoice{groupInvoiceCount !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                  </header>
+
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-slate-50">
+                        <tr>
+                          <th className="px-4 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Bill Number</th>
+                          <th className="px-4 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Date</th>
+                          <th className="px-4 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Item</th>
+                          <th className="px-4 py-3.5 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Quantity</th>
+                          <th className="px-4 py-3.5 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Rate</th>
+                          <th className="px-4 py-3.5 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Discount</th>
+                          <th className="px-4 py-3.5 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Total (PKR)</th>
+                          <th className="px-4 py-3.5 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {group.rows.map((row) => (
+                          <tr key={row._id} className="hover:bg-indigo-50/40 transition-colors">
+                            <td className="px-4 py-3.5 whitespace-nowrap text-sm font-bold text-indigo-700">
+                              <span className="px-2.5 py-1 bg-indigo-50 border border-indigo-200 rounded-lg">#{row.billId}</span>
+                            </td>
+                            <td className="px-4 py-3.5 whitespace-nowrap text-xs text-gray-600 font-medium">
+                              {configService.formatDate(row.billDate)}
+                            </td>
+                            <td className="px-4 py-3.5 whitespace-nowrap text-sm font-bold text-gray-900">
+                              {row.productName}
+                              {row.isBonus && (
+                                <span className="ml-1 px-1.5 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded">Bonus</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3.5 whitespace-nowrap text-sm font-black text-gray-900 text-center">
+                              {row.quantity}
+                            </td>
+                            <td className="px-4 py-3.5 whitespace-nowrap text-sm text-gray-700 font-semibold text-right">
+                              PKR {row.rate.toLocaleString("en-PK")}
+                            </td>
+                            <td className="px-4 py-3.5 whitespace-nowrap text-xs text-gray-700 font-medium text-right">
+                              {row.discount}%{row.extraDiscount ? ` + ${row.extraDiscount}%` : ""}
+                            </td>
+                            <td className="px-4 py-3.5 whitespace-nowrap text-sm font-extrabold text-gray-900 text-right">
+                              PKR {row.total.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td className="px-4 py-3.5 whitespace-nowrap text-sm text-right font-medium">
+                              <Link
+                                to={`/bill/${row.billKey}`}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-xl text-xs font-bold transition-colors"
+                                onClick={handleViewBill}
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                View
+                              </Link>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <footer className="px-4 py-3 border-t border-gray-200 bg-slate-50 flex flex-wrap justify-end gap-x-6 gap-y-2 text-xs font-bold text-gray-600">
+                    <span>Quantity: <strong className="text-indigo-800">{groupQuantity}</strong></span>
+                    <span>Items: <strong className="text-gray-900">{group.rows.length}</strong></span>
+                    <span>Total: <strong className="text-indigo-900">PKR {groupAmount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
+                  </footer>
+                </section>
+              )
+            })}
+
+            <div className="bg-white rounded-2xl shadow-md border border-slate-200/80 p-4 flex flex-wrap justify-between items-center gap-3">
+              <div className="flex flex-wrap items-center gap-5 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                <span>Clients: {companyReportGroups.length}</span>
+                <span>Invoices: {companyReportTotals.invoiceCount}</span>
+                <span>Quantity: {companyReportTotals.totalQuantity}</span>
+              </div>
+              <span className="text-lg font-black text-indigo-900">
+                Total: PKR {companyReportTotals.totalAmount.toLocaleString("en-PK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl shadow-md border border-slate-200/80 p-12 text-center">
+            <div className="w-12 h-12 bg-indigo-50 text-indigo-400 rounded-full flex items-center justify-center mx-auto mb-3">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7h18M5 7v13h14V7M9 7V4h6v3m-6 5h6m-6 4h6" />
+              </svg>
+            </div>
+            <h3 className="text-sm font-bold text-gray-900 mb-1">No company bills found</h3>
+            <p className="text-sm text-gray-500">
+              No matching item sales from {companyReportFilter} were found for the selected filters.
             </p>
           </div>
         )

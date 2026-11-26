@@ -577,7 +577,7 @@ export default function BulkBillGeneration() {
     setConfirmationDialog(null)
     setIsSavingBatch(true)
     try {
-      const payload = queuedBills.map((bill) => ({ clientId: bill.clientId, clientName: bill.clientName, clientAddress: bill.clientAddress, fieldOfficerId: selectedFieldOfficer._id, salesmanId: selectedSalesman._id, billDate: new Date(`${bill.billDate}T00:00:00`), items: bill.items, totalAmount: bill.totalAmount }))
+      const payload = queuedBills.map((bill) => ({ clientId: bill.clientId, clientName: bill.clientName, clientAddress: bill.clientAddress, fieldOfficerId: selectedFieldOfficer._id, salesmanId: selectedSalesman._id, billDate: bill.billDate, items: bill.items, totalAmount: bill.totalAmount }))
       const savedBills = await window.api.addBills(payload)
       dataService.invalidateCacheOnModification("bills"); dataService.invalidateCacheOnModification("dashboardStats")
       setSavedBatchResult(savedBills)

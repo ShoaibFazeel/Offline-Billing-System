@@ -29,6 +29,7 @@ function BillGeneration() {
   const [selectedFieldOfficer, setSelectedFieldOfficer] = useState(null)
   const [selectedSalesman, setSelectedSalesman] = useState(null)
   const [lastBillForDefaults, setLastBillForDefaults] = useState(null)
+  const [billDate, setBillDate] = useState(configService.getTodayIsoDate())
   const [clientSearchTerm, setClientSearchTerm] = useState("")
   const [fieldOfficerSearchTerm, setFieldOfficerSearchTerm] = useState("")
   const [salesmanSearchTerm, setSalesmanSearchTerm] = useState("")
@@ -58,7 +59,6 @@ function BillGeneration() {
   // List of added items in the bill
   const [billItems, setBillItems] = useState([])
 
-  const [billDate, setBillDate] = useState(configService.getTodayIsoDate())
   const [billTotal, setBillTotal] = useState(0)
   const [productSearchTerm, setProductSearchTerm] = useState("")
   const [bonusProductSearchTerms, setBonusProductSearchTerms] = useState({})
@@ -86,6 +86,7 @@ function BillGeneration() {
   const salesmanDropdownRef = useRef(null)
   const fieldOfficerSelectionTouched = useRef(false)
   const salesmanSelectionTouched = useRef(false)
+  const billDateSelectionTouched = useRef(false)
   const productDropdownRef = useRef(null)
   const bonusProductDropdownRefs = useRef({})
 
@@ -139,6 +140,10 @@ function BillGeneration() {
     if (!salesmanSelectionTouched.current) {
       const lastSalesman = salesmen.find((salesman) => salesman._id === lastBillForDefaults.salesmanId)
       if (lastSalesman) setSelectedSalesman(lastSalesman)
+    }
+
+    if (!billDateSelectionTouched.current && lastBillForDefaults.billDate) {
+      setBillDate(lastBillForDefaults.billDate)
     }
   }, [lastBillForDefaults, fieldOfficers, salesmen])
 
@@ -1123,7 +1128,7 @@ function BillGeneration() {
       fieldOfficerName: selectedFieldOfficer.name,
       salesmanId: selectedSalesman._id,
       salesmanName: selectedSalesman.name,
-      billDate: new Date(`${billDate}T00:00:00`),
+      billDate,
       items: itemsWithIds,
       totalAmount: roundedTotal,
     }
@@ -1317,7 +1322,10 @@ function BillGeneration() {
               type="date"
               id="billDate"
               value={billDate}
-              onChange={(e) => setBillDate(e.target.value)}
+              onChange={(e) => {
+                billDateSelectionTouched.current = true
+                setBillDate(e.target.value)
+              }}
               className="w-full p-2.5 bg-slate-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm transition-all"
             />
           </div>
