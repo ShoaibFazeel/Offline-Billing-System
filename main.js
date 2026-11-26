@@ -99,6 +99,27 @@ function toIsoDate(value) {
   return date.toISOString()
 }
 
+function toBillDate(value) {
+  if (!value) return ""
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
+    return value.trim()
+  }
+  return toIsoDate(value)
+}
+
+function getBillCalendarDate(value) {
+  if (!value) return ""
+  const dateValue = String(value)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return dateValue
+
+  const date = new Date(dateValue)
+  if (Number.isNaN(date.getTime())) return ""
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  return `${year}-${month}-${day}`
+}
+
 /** Open the existing SQLite database with durable, disk-backed storage. */
 async function initDatabase() {
   const dbPath = DB_PATH()
@@ -165,6 +186,7 @@ function parseBill(row) {
   if (!row) return null
   return {
     ...row,
+    billDate: getBillCalendarDate(row.billDate),
     items: (() => { try { return JSON.parse(row.items || "[]") } catch { return [] } })(),
     totalAmount: Number(row.totalAmount || 0),
   }
@@ -607,12 +629,12 @@ ipcMain.handle("get-bills", async (event, opts = {}) => {
   }
 
   if (fromDate) {
-    whereClauses.push("DATE(billDate) >= ?")
+    whereClauses.push("CASE WHEN length(billDate) = 10 THEN DATE(billDate) ELSE DATE(billDate, 'localtime') END >= ?")
     params.push(fromDate)
   }
 
   if (toDate) {
-    whereClauses.push("DATE(billDate) <= ?")
+    whereClauses.push("CASE WHEN length(billDate) = 10 THEN DATE(billDate) ELSE DATE(billDate, 'localtime') END <= ?")
     params.push(toDate)
   }
 
@@ -664,9 +686,10 @@ ipcMain.handle("get-bill", async (event, billId) => {
 })
 
 ipcMain.handle("get-latest-bill", async () => {
-  return queryOne(
-    "SELECT fieldOfficerId, salesmanId FROM bills WHERE billId IS NOT NULL ORDER BY CAST(billId AS INTEGER) DESC LIMIT 1"
+  const latestBill = queryOne(
+    "SELECT * FROM bills WHERE billId IS NOT NULL ORDER BY CAST(billId AS INTEGER) DESC LIMIT 1"
   )
+  return parseBill(latestBill)
 })
 
 ipcMain.handle("add-bill", async (event, bill) => {
@@ -690,7 +713,7 @@ ipcMain.handle("add-bill", async (event, bill) => {
         billToSave.clientAddress || "",
         billToSave.fieldOfficerId || "",
         billToSave.salesmanId || "",
-        billToSave.billDate ? toIsoDate(billToSave.billDate) : "",
+        toBillDate(billToSave.billDate),
         Number(billToSave.totalAmount) || 0,
         JSON.stringify(billToSave.items),
       ]
@@ -740,7 +763,7 @@ ipcMain.handle("add-bills", async (event, bills) => {
           billToSave.clientAddress || "",
           billToSave.fieldOfficerId || "",
           billToSave.salesmanId || "",
-          billToSave.billDate ? toIsoDate(billToSave.billDate) : "",
+          toBillDate(billToSave.billDate),
           Number(billToSave.totalAmount) || 0,
           JSON.stringify(billToSave.items),
         ]
@@ -784,7 +807,7 @@ ipcMain.handle("update-bill", async (event, bill) => {
         billToSave.clientAddress || "",
         billToSave.fieldOfficerId || "",
         billToSave.salesmanId || "",
-        billToSave.billDate ? toIsoDate(billToSave.billDate) : "",
+        toBillDate(billToSave.billDate),
         Number(billToSave.totalAmount) || 0,
         JSON.stringify(billToSave.items),
         billToSave._id,
@@ -833,7 +856,7 @@ ipcMain.handle("import-bills", async (event, bills) => {
         clientAddress: bill.clientAddress || "",
         fieldOfficerId: bill.fieldOfficerId || "",
         salesmanId: bill.salesmanId || "",
-        billDate: toIsoDate(bill.billDate),
+        billDate: toBillDate(bill.billDate),
         totalAmount: Number(bill.totalAmount) || 0,
         items: JSON.stringify(ensureItemsHaveIds(bill.items || [])),
       }

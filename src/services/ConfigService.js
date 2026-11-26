@@ -96,6 +96,14 @@ class ConfigService {
 
     formatDate(date, extraOptions = {}) {
         try {
+            if (typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date.trim())) {
+                const dateValue = new Date(`${date.trim()}T12:00:00.000Z`)
+                if (Number.isNaN(dateValue.getTime())) return "Invalid Date"
+                return dateValue.toLocaleDateString(this.config.locale, {
+                    ...this.getDateOptions(extraOptions),
+                    timeZone: "UTC",
+                })
+            }
             const d = date instanceof Date ? date : new Date(date)
             return d.toLocaleDateString(this.config.locale, this.getDateOptions(extraOptions))
         } catch (error) {
